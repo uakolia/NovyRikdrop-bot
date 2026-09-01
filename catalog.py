@@ -97,17 +97,30 @@ def find_variant_short(model_ua: str, idx: int):
 
 async def reload_from_google():
     """Перечитати прайс із Google Таблиці (CSV-експорт). Повертає (к-сть, помилка)."""
-    url = (f"https://docs.google.com/spreadsheets/d/{config.PRICELIST_SHEET_ID}"
-           f"/export?format=csv&gid={config.PRICELIST_GID}")
+    base = (f"https://docs.google.com/spreadsheets/d/{config.PRICELIST_SHEET_ID}"
+            f"/export?format=csv")
+    # якщо gid не задано — експортуємо першу вкладку (надійніше, ніж вгадувати gid)
+    urls = [f"{base}&gid={config.PRICELIST_GID}"] if config.PRICELIST_GID else []
+    urls.append(base)
     try:
+        text, last_status = None, None
         async with aiohttp.ClientSession() as s:
-            async with s.get(url, timeout=aiohttp.ClientTimeout(total=60)) as r:
-                if r.status != 200:
-                    return 0, f"HTTP {r.status} (перевірте, що таблиця доступна за посиланням)"
-                text = await r.text()
+            for url in urls:
+                async with s.get(url, timeout=aiohttp.ClientTimeout(total=90)) as r:
+                    last_status = r.status
+                    if r.status == 200:
+                        text = await r.text()
+                        break
+        if text is None:
+            if last_status in (401, 403):
+                return 0, ("немає доступу до таблиці. Відкрийте доступ "
+                           "«Усі, хто має посилання — Переглядач»")
+            return 0, (f"HTTP {last_status}. Перевірте PRICELIST_SHEET_ID, "
+                       "а PRICELIST_GID краще залишити порожнім")
         new_items = parse_csv_text(text)
         if len(new_items) < 10:
-            return 0, f"розпізнано лише {len(new_items)} товарів — оновлення скасовано"
+            return 0, (f"розпізнано лише {len(new_items)} товарів — "
+                       "можливо, експортувалася не та вкладка. Оновлення скасовано")
         _catalog["items"] = new_items
         with open(CATALOG_PATH, "w", encoding="utf-8") as f:
             json.dump(_catalog, f, ensure_ascii=False, indent=1)
