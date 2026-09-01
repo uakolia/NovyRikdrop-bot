@@ -19,7 +19,9 @@ class Order(StatesGroup):
     payment = State()
     sale_price = State()
     prepaid = State()
-    fio = State()
+    lname = State()
+    fname = State()
+    mname = State()
     phone = State()
     city = State()
     city_pick = State()
@@ -116,8 +118,15 @@ async def pick_qty(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
-FIO_PROMPT = ("👤 Введіть <b>ПІБ отримувача</b>\n"
-              "(Прізвище Ім'я По-батькові, наприклад: <i>Шевченко Тарас Григорович</i>)")
+FIO_PROMPT = ("👤 Введіть <b>прізвище</b> отримувача\n"
+              "(наприклад: <i>Шевченко</i>)")
+
+NAME_RE = re.compile(r"[А-ЯІЇЄҐа-яіїєґA-Za-z'’\-]{2,40}")
+
+
+def _valid_name(text: str) -> str | None:
+    name = text.strip()
+    return name if NAME_RE.fullmatch(name) else None
 
 
 def _amount(text: str) -> int | None:
@@ -133,7 +142,7 @@ async def pick_payment(cb: CallbackQuery, state: FSMContext):
     await state.update_data(payment=payment)
     if payment == "передплата":
         await state.update_data(sale_price=0, prepaid=0, cod_amount=0)
-        await state.set_state(Order.fio)
+        await state.set_state(Order.lname)
         await cb.message.edit_text(FIO_PROMPT)
     else:
         await state.set_state(Order.sale_price)
@@ -157,7 +166,7 @@ async def input_sale_price(msg: Message, state: FSMContext):
                          "Скільки клієнт <b>уже передплатив</b>, грн?")
     else:  # післяплата — вся сума при отриманні
         await state.update_data(prepaid=0, cod_amount=amount)
-        await state.set_state(Order.fio)
+        await state.set_state(Order.lname)
         await msg.answer(FIO_PROMPT)
 
 
@@ -175,24 +184,67 @@ async def input_prepaid(msg: Message, state: FSMContext):
                          f"продажу ({sale} грн). Спробуйте ще раз:")
         return
     await state.update_data(prepaid=prepaid, cod_amount=sale - prepaid)
-    await state.set_state(Order.fio)
+    await state.set_state(Order.lname)
     await msg.answer(f"✅ При отриманні клієнт сплатить: <b>{sale - prepaid} грн</b>\n\n"
                      + FIO_PROMPT)
 
 
-@router.message(Order.fio, F.text)
-async def input_fio(msg: Message, state: FSMContext):
-    fio = re.sub(r"\s+", " ", msg.text).strip()
-    if len(fio.split()) < 3 or not re.fullmatch(r"[А-ЯІЇЄҐа-яіїєґA-Za-z'’\-. ]{8,80}", fio):
-        await msg.answer("⚠️ Введіть <b>повне ПІБ</b> — Прізвище, Ім'я та "
-                         "По-батькові (3 слова), лише літери.\n"
-                         "Наприклад: <i>Гордійчук Микола Іванович</i>\n\n"
-                         "Спробуйте ще раз:")
+@router.message(Order.lname, F.text)
+async def input_lname(msg: Message, state: FSMContext):
+    name = _valid_name(msg.text)
+    if not name:
+        await msg.answer("⚠️ Введіть лише <b>прізвище</b>, одним словом "
+                         "(наприклад: <i>Шевченко</i>):")
         return
+    await state.update_data(lname=name)
+    await state.set_state(Order.fname)
+    await msg.answer("Тепер введіть <b>ім'я</b> отримувача\n(наприклад: <i>Тарас</i>)")
+
+
+@router.message(Order.fname, F.text)
+async def input_fname(msg: Message, state: FSMContext):
+    name = _valid_name(msg.text)
+    if not name:
+        await msg.answer("⚠️ Введіть лише <b>ім'я</b>, одним словом "
+                         "(наприклад: <i>Тарас</i>):")
+        return
+    await state.update_data(fname=name)
+    await state.set_state(Order.mname)
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    await msg.answer(
+        "Введіть <b>по-батькові</b> (необов'язково)\n(наприклад: <i>Григорович</i>)",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="⏭ Пропустити", callback_data="mname:skip")]]))
+
+
+async def _fio_done(state: FSMContext, mname: str = ""):
+    data = await state.get_data()
+    fio = " ".join(x for x in (data["lname"], data["fname"], mname) if x)
     await state.update_data(fio=fio)
     await state.set_state(Order.phone)
-    await msg.answer("📞 Введіть <b>номер телефону отримувача</b>\n"
+    return fio
+
+
+@router.message(Order.mname, F.text)
+async def input_mname(msg: Message, state: FSMContext):
+    name = _valid_name(msg.text)
+    if not name:
+        await msg.answer("⚠️ Введіть по-батькові одним словом, або натисніть "
+                         "«Пропустити» вище:")
+        return
+    fio = await _fio_done(state, name)
+    await msg.answer(f"👤 Отримувач: <b>{fio}</b>\n\n"
+                     "📞 Введіть <b>номер телефону отримувача</b>\n"
                      "(наприклад: <i>0671234567</i> або <i>+380671234567</i>)")
+
+
+@router.callback_query(F.data == "mname:skip", Order.mname)
+async def skip_mname(cb: CallbackQuery, state: FSMContext):
+    fio = await _fio_done(state)
+    await cb.message.edit_text(f"👤 Отримувач: <b>{fio}</b>\n\n"
+                               "📞 Введіть <b>номер телефону отримувача</b>\n"
+                               "(наприклад: <i>0671234567</i> або <i>+380671234567</i>)")
+    await cb.answer()
 
 
 @router.message(Order.phone, F.text)
