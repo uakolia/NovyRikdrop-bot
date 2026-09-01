@@ -259,6 +259,22 @@ async def cmd_reload(msg: Message):
                          f"(було {before}).\n\n{cats}")
 
 
+@router.message(Command("catalog"))
+async def cmd_catalog(msg: Message):
+    if not _is_admin(msg.from_user.id):
+        return
+    items = catalog.items()
+    lines = [f"📦 <b>Каталог: {len(items)} товарів</b>", ""]
+    for c in catalog.categories():
+        n = sum(1 for i in items if catalog.category_of(i) == c)
+        lines.append(f"• {c} — {n}")
+    est = [i["article"] for i in items if i.get("weight_estimated")]
+    if est:
+        lines += ["", f"⚠️ Вага оцінена (немає в прайсі) у {len(est)}: "
+                      + ", ".join(est[:12])]
+    await msg.answer("\n".join(lines))
+
+
 @router.message(Command("id"))
 async def cmd_id(msg: Message):
     await msg.answer(f"ID цього чату: <code>{msg.chat.id}</code>\n"
