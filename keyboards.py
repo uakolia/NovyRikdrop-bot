@@ -83,10 +83,11 @@ def warehouses_kb(warehouses, page: int = 0):
     rows = []
     for i, w in enumerate(chunk):
         mark = "🏗" if w["cargo"] else "🏢"
+        limit = f" (до {w['max_weight']:g} кг)" if w.get("max_weight") else ""
         name = w["name"]
-        if len(name) > 55:
-            name = name[:52] + "…"
-        rows.append([InlineKeyboardButton(text=f"{mark} {name}",
+        if len(name) + len(limit) > 55:
+            name = name[:52 - len(limit)] + "…"
+        rows.append([InlineKeyboardButton(text=f"{mark} {name}{limit}",
                                           callback_data=f"wh:{page * PER_PAGE + i}")])
     nav = []
     if page > 0:

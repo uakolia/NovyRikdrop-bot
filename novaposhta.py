@@ -51,18 +51,23 @@ async def cargo_warehouses(city_ref: str, min_weight: float | None = None):
     min_w = min_weight if min_weight is not None else config.NP_MIN_WAREHOUSE_WEIGHT
     data = await _call("Address", "getWarehouses",
                        {"CityRef": city_ref, "Limit": "500"})
+    def _f(v):
+        try:
+            return float(v or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
     result = []
     for w in data:
         if w.get("TypeOfWarehouse") == TYPE_POSTOMAT:
             continue
-        try:
-            max_w = float(w.get("PlaceMaxWeightAllowed") or 0)
-        except (TypeError, ValueError):
-            max_w = 0
-        # 0 у НП означає «без обмежень» лише для вантажних; надійніше:
-        # беремо вантажні відділення АБО відділення з лімітом більше min_w
+        # беремо найбільший із двох лімітів НП: на одне місце і на відправлення
+        max_w = max(_f(w.get("PlaceMaxWeightAllowed")),
+                    _f(w.get("TotalMaxWeightAllowed")))
         is_cargo = w.get("TypeOfWarehouse") == TYPE_CARGO
-        if is_cargo or max_w > min_w:
+        # 0 у НП означає «без обмежень»; підходить: вантажне, без обмежень,
+        # або з лімітом понад min_w кг
+        if is_cargo or max_w == 0 or max_w > min_w:
             result.append({
                 "ref": w["Ref"],
                 "number": w.get("Number", ""),

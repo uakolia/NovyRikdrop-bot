@@ -126,9 +126,11 @@ async def pick_payment(cb: CallbackQuery, state: FSMContext):
 @router.message(Order.fio, F.text)
 async def input_fio(msg: Message, state: FSMContext):
     fio = re.sub(r"\s+", " ", msg.text).strip()
-    if len(fio.split()) < 2 or not re.fullmatch(r"[А-ЯІЇЄҐа-яіїєґA-Za-z'’\-. ]{5,80}", fio):
-        await msg.answer("⚠️ Введіть ПІБ повністю (мінімум прізвище та ім'я), "
-                         "лише літери. Спробуйте ще раз:")
+    if len(fio.split()) < 3 or not re.fullmatch(r"[А-ЯІЇЄҐа-яіїєґA-Za-z'’\-. ]{8,80}", fio):
+        await msg.answer("⚠️ Введіть <b>повне ПІБ</b> — Прізвище, Ім'я та "
+                         "По-батькові (3 слова), лише літери.\n"
+                         "Наприклад: <i>Гордійчук Микола Іванович</i>\n\n"
+                         "Спробуйте ще раз:")
         return
     await state.update_data(fio=fio)
     await state.set_state(Order.phone)
