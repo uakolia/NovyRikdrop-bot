@@ -20,6 +20,10 @@ def load():
     return _catalog
 
 
+def items_or_empty():
+    return _catalog.get("items") or []
+
+
 def items():
     if not _catalog["items"]:
         load()
@@ -95,32 +99,73 @@ def find_variant_short(model_ua: str, idx: int):
     return v[idx] if 0 <= idx < len(v) else None
 
 
+SHEET_BASE = "https://docs.google.com/spreadsheets/d/{sid}"
+
+
+async def _fetch(session, url):
+    async with session.get(url, timeout=aiohttp.ClientTimeout(total=90)) as r:
+        return r.status, (await r.text() if r.status == 200 else "")
+
+
+async def _discover_gids(session, sid):
+    """Знайти всі вкладки таблиці (прайс складається з кількох аркушів)."""
+    status, html = await _fetch(session, SHEET_BASE.format(sid=sid) + "/edit")
+    if status != 200:
+        return []
+    gids, seen = [], set()
+    for m in re.finditer(r'[\'"]?gid[\'"]?[:=]\s*[\'"]?(\d{1,12})', html):
+        g = m.group(1)
+        if g not in seen:
+            seen.add(g)
+            gids.append(g)
+    return gids[:30]
+
+
 async def reload_from_google():
-    """Перечитати прайс із Google Таблиці (CSV-експорт). Повертає (к-сть, помилка)."""
-    base = (f"https://docs.google.com/spreadsheets/d/{config.PRICELIST_SHEET_ID}"
-            f"/export?format=csv")
-    # якщо gid не задано — експортуємо першу вкладку (надійніше, ніж вгадувати gid)
-    urls = [f"{base}&gid={config.PRICELIST_GID}"] if config.PRICELIST_GID else []
-    urls.append(base)
+    """Перечитати прайс із Google Таблиці — всі вкладки. Повертає (к-сть, помилка)."""
+    sid = config.PRICELIST_SHEET_ID
+    export = SHEET_BASE.format(sid=sid) + "/export?format=csv"
     try:
-        text, last_status = None, None
         async with aiohttp.ClientSession() as s:
+            gids = config.PRICELIST_GIDS or await _discover_gids(s, sid)
+
+            merged, ok_tabs, last_status = {}, 0, None
+            urls = [f"{export}&gid={g}" for g in gids] or [export]
             for url in urls:
-                async with s.get(url, timeout=aiohttp.ClientTimeout(total=90)) as r:
-                    last_status = r.status
-                    if r.status == 200:
-                        text = await r.text()
-                        break
-        if text is None:
+                status, text = await _fetch(s, url)
+                last_status = status
+                if status != 200:
+                    continue
+                items = parse_csv_text(text)
+                if items:
+                    ok_tabs += 1
+                    for it in items:
+                        merged.setdefault(it["article"], it)
+
+            if not merged and not gids:
+                # жодної вкладки не знайшли — остання спроба: перша вкладка
+                status, text = await _fetch(s, export)
+                last_status = status
+                if status == 200:
+                    for it in parse_csv_text(text):
+                        merged.setdefault(it["article"], it)
+
+        if not merged:
             if last_status in (401, 403):
                 return 0, ("немає доступу до таблиці. Відкрийте доступ "
                            "«Усі, хто має посилання — Переглядач»")
-            return 0, (f"HTTP {last_status}. Перевірте PRICELIST_SHEET_ID, "
-                       "а PRICELIST_GID краще залишити порожнім")
-        new_items = parse_csv_text(text)
+            return 0, f"не вдалося прочитати таблицю (HTTP {last_status})"
+
+        new_items = list(merged.values())
+        current = len(items_or_empty())
+        # запобіжник: не даємо каталогу «схуднути» через недочитані вкладки
+        if current and len(new_items) < current * 0.8:
+            return 0, (f"розпізнано лише {len(new_items)} товарів із {ok_tabs} вкладок, "
+                       f"а в каталозі зараз {current}. Схоже, прочиталися не всі "
+                       "вкладки — оновлення скасовано, каталог не змінено")
         if len(new_items) < 10:
-            return 0, (f"розпізнано лише {len(new_items)} товарів — "
-                       "можливо, експортувалася не та вкладка. Оновлення скасовано")
+            return 0, f"розпізнано лише {len(new_items)} товарів — оновлення скасовано"
+
         _catalog["items"] = new_items
         with open(CATALOG_PATH, "w", encoding="utf-8") as f:
             json.dump(_catalog, f, ensure_ascii=False, indent=1)

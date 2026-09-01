@@ -247,12 +247,16 @@ async def cmd_block(msg: Message):
 async def cmd_reload(msg: Message):
     if not _is_admin(msg.from_user.id):
         return
-    await msg.answer("⏳ Оновлюю каталог із Google Таблиці…")
+    before = len(catalog.items())
+    await msg.answer("⏳ Оновлюю каталог із Google Таблиці (усі вкладки)…")
     n, err = await catalog.reload_from_google()
     if err:
-        await msg.answer(f"⚠️ Не вдалося: {err}\nКаталог залишився без змін.")
+        await msg.answer(f"⚠️ Не вдалося: {err}")
     else:
-        await msg.answer(f"✅ Каталог оновлено: {n} товарів.")
+        cats = ", ".join(f"{c} — {sum(1 for i in catalog.items() if catalog.category_of(i) == c)}"
+                         for c in catalog.categories())
+        await msg.answer(f"✅ Каталог оновлено: <b>{n}</b> товарів "
+                         f"(було {before}).\n\n{cats}")
 
 
 @router.message(Command("id"))

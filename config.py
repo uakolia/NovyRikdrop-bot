@@ -38,8 +38,8 @@ SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
 
 # Google Sheet прайс-лист (для /reload)
 PRICELIST_SHEET_ID = os.getenv("PRICELIST_SHEET_ID", "18OkfzTnujb_VFTX0UuDlkEwCBNiR1pFy5OeafHugYFg")
-# номер вкладки; порожньо = перша вкладка таблиці (рекомендовано)
-PRICELIST_GID = os.getenv("PRICELIST_GID", "").strip()
+# номери вкладок через кому (беруться з URL: #gid=...). Порожньо = бот знайде сам
+PRICELIST_GIDS = [g.strip() for g in os.getenv("PRICELIST_GIDS", "").replace(";", ",").split(",") if g.strip().isdigit()]
 
 # Вебхук для замовлень із сайту (Weblium через Zapier/Make тощо)
 WEBLIUM_SECRET = os.getenv("WEBLIUM_SECRET", "")
