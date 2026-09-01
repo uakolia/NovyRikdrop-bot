@@ -11,6 +11,7 @@ import catalog, config
 import handlers_admin as admin
 import handlers_order as order
 import handlers_start as start
+import handlers_support as support
 from webhook import make_app
 
 logging.basicConfig(level=logging.INFO,
@@ -28,6 +29,7 @@ async def main():
               default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     dp.include_router(admin.router)
+    dp.include_router(support.router)
     dp.include_router(start.router)
     dp.include_router(order.router)
 

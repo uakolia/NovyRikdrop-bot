@@ -10,6 +10,8 @@ def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🌲 Нове замовлення", callback_data="order:new")],
         [InlineKeyboardButton(text="ℹ️ Допомога", callback_data="help")],
+        [InlineKeyboardButton(text="✍️ Повідомити про проблему",
+                              callback_data="support:new")],
     ])
 
 
