@@ -56,13 +56,14 @@ async def cb_my_orders(cb: CallbackQuery):
     if not rows:
         text = "📋 <b>Мої замовлення</b>\n\nПоки що замовлень немає."
         if err:
-            text += f"\n\n<i>(журнал недоступний: {err})</i>"
+            text += f"\n\n<i>⚠️ {err}</i>"
         await cb.message.edit_text(text, reply_markup=kb.main_menu())
         return
     blocks = "\n\n".join(_fmt(o) for o in rows)
     text = f"📋 <b>Мої замовлення</b> (останні {len(rows)})\n\n{blocks}"
     if err:
-        text += f"\n\n<i>(показано з локального журналу: {err})</i>"
+        text += ("\n\n<i>⚠️ Журнал у таблиці недоступний, показано локальні дані.\n"
+                 f"{err}</i>")
     await cb.message.edit_text(text[:4000], reply_markup=kb.main_menu(),
                                disable_web_page_preview=True)
 

@@ -7,9 +7,14 @@
   GET  ?what=orders&id=<tg_id>     — замовлення дропшипера
   GET  ?what=maxorder              — максимальний номер замовлення
 """
+import json
+
 import aiohttp
 
 import config
+
+NEED_UPDATE = ("скрипт таблиці старої версії. Apps Script → вставте новий код → "
+               "Деплой → Керувати розгортаннями → ✏️ → Версія: Нова версія")
 
 TIMEOUT = aiohttp.ClientTimeout(total=30)
 
@@ -27,9 +32,17 @@ async def _post(payload: dict):
                               timeout=TIMEOUT, allow_redirects=True) as r:
                 if r.status >= 400:
                     return None, f"HTTP {r.status}"
-                return await r.json(content_type=None), None
+                return _parse(await r.text())
     except Exception as e:  # noqa: BLE001
         return None, str(e)
+
+
+def _parse(text: str):
+    """Apps Script без doGet віддає HTML — показуємо зрозуміле пояснення."""
+    try:
+        return json.loads(text), None
+    except ValueError:
+        return None, NEED_UPDATE
 
 
 async def _get(params: dict):
@@ -41,7 +54,7 @@ async def _get(params: dict):
                              timeout=TIMEOUT, allow_redirects=True) as r:
                 if r.status >= 400:
                     return None, f"HTTP {r.status}"
-                return await r.json(content_type=None), None
+                return _parse(await r.text())
     except Exception as e:  # noqa: BLE001
         return None, str(e)
 
@@ -67,7 +80,7 @@ async def fetch_dropshippers():
         return None, err
     rows = (data or {}).get("rows")
     if rows is None:
-        return None, "таблиця відповіла без rows — оновіть скрипт Apps Script"
+        return None, NEED_UPDATE
     return rows, None
 
 
@@ -78,7 +91,7 @@ async def fetch_orders(user_id: int, limit: int = 10):
         return None, err
     rows = (data or {}).get("rows")
     if rows is None:
-        return None, "таблиця відповіла без rows — оновіть скрипт Apps Script"
+        return None, NEED_UPDATE
     return rows, None
 
 
