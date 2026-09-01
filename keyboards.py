@@ -9,8 +9,16 @@ PER_PAGE = 8
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🌲 Нове замовлення", callback_data="order:new")],
+        [InlineKeyboardButton(text="📋 Мої замовлення", callback_data="my:orders")],
         [InlineKeyboardButton(text="ℹ️ Допомога", callback_data="help")],
         [InlineKeyboardButton(text="✍️ Повідомити про проблему",
+                              callback_data="support:new")],
+    ])
+
+
+def support_only_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✍️ Написати менеджеру",
                               callback_data="support:new")],
     ])
 
@@ -36,7 +44,7 @@ def models_kb(cat_idx: int, page: int = 0):
         nav.append(InlineKeyboardButton(text="➡️", callback_data=f"mdlp:{cat_idx}:{page + 1}"))
     if nav:
         rows.append(nav)
-    rows.append([InlineKeyboardButton(text="↩️ Категорії", callback_data="order:new"),
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back:model"),
                  InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -49,7 +57,7 @@ def variants_kb(cat_idx: int, model_idx: int):
         price = catalog.drop_price(v)
         label = f"{catalog.size_label(v)} — {price:,.0f} грн".replace(",", " ")
         rows.append([InlineKeyboardButton(text=label, callback_data=f"var:{i}")])
-    rows.append([InlineKeyboardButton(text="↩️ Моделі", callback_data=f"mdlp:{cat_idx}:0"),
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back:variant"),
                  InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -58,7 +66,8 @@ def qty_kb():
     row = [InlineKeyboardButton(text=str(n), callback_data=f"qty:{n}") for n in range(1, 6)]
     return InlineKeyboardMarkup(inline_keyboard=[
         row,
-        [InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back:qty"),
+         InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
     ])
 
 
@@ -70,20 +79,12 @@ def payment_kb():
                               callback_data="pay:часткова")],
         [InlineKeyboardButton(text="✅ Передплата (вже оплачено повністю)",
                               callback_data="pay:передплата")],
-        [InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back:payment"),
+         InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
     ])
 
 
-def cities_kb(cities):
-    rows = [[InlineKeyboardButton(text=f"{c['name']} ({c['area']} обл.)",
-                                  callback_data=f"city:{i}")]
-            for i, c in enumerate(cities)]
-    rows.append([InlineKeyboardButton(text="🔄 Ввести іншу назву", callback_data="city:again"),
-                 InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def warehouses_kb(warehouses, page: int = 0):
+def warehouses_kb(warehouses, page: int = 0, back_step: str = "warehouse"):
     chunk = warehouses[page * PER_PAGE:(page + 1) * PER_PAGE]
     rows = []
     for i, w in enumerate(chunk):
@@ -101,7 +102,8 @@ def warehouses_kb(warehouses, page: int = 0):
         nav.append(InlineKeyboardButton(text="➡️", callback_data=f"whp:{page + 1}"))
     if nav:
         rows.append(nav)
-    rows.append([InlineKeyboardButton(text="↩️ Інше місто", callback_data="city:again"),
+    rows.append([InlineKeyboardButton(text="⬅️ Назад",
+                                      callback_data=f"back:{back_step}"),
                  InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -109,7 +111,8 @@ def warehouses_kb(warehouses, page: int = 0):
 def confirm_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Підтвердити замовлення", callback_data="confirm:yes")],
-        [InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back:confirm"),
+         InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
     ])
 
 

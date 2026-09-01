@@ -143,10 +143,31 @@ async def all_warehouses(city_ref: str, api_key: str | None = None):
             for w in data if w.get("TypeOfWarehouse") != TYPE_POSTOMAT]
 
 
+async def search_streets(city_ref: str, query: str, limit: int = 10):
+    """Пошук вулиць у місті. Повертає [{ref, name, type}]."""
+    data = await _call("Address", "getStreet",
+                       {"CityRef": city_ref, "FindByString": query.strip(),
+                        "Limit": str(limit)})
+    return [{"ref": s["Ref"], "name": s.get("Description", ""),
+             "type": s.get("StreetsTypeDescription", "")} for s in data]
+
+
+async def create_address(counterparty_ref: str, street_ref: str,
+                         building: str, flat: str = ""):
+    """Створити адресу отримувача. Повертає Ref адреси."""
+    props = {"CounterpartyRef": counterparty_ref, "StreetRef": street_ref,
+             "BuildingNumber": building}
+    if flat:
+        props["Flat"] = flat
+    data = await _call("Address", "save", props)
+    return data[0]["Ref"]
+
+
 async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
                      fio: str, phone: str, description: str, cost: float,
                      weight: float, volume: float | None, seats: int = 1,
-                     cod_amount: float = 0):
+                     cod_amount: float = 0, to_door: bool = False,
+                     street_ref: str = "", building: str = "", flat: str = ""):
     """Створити ТТН. cod_amount > 0 додає «Контроль оплати» на цю суму.
 
     Повертає {ttn, ref, cost_delivery, estimated_date}.
@@ -158,6 +179,13 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
 
     recipient_ref, recipient_contact = await create_recipient(fio, phone)
 
+    if to_door:
+        address_ref = await create_address(recipient_ref, street_ref, building, flat)
+        service_type = "WarehouseDoors"
+    else:
+        address_ref = recipient_warehouse_ref
+        service_type = "WarehouseWarehouse"
+
     props = {
         "PayerType": config.NP_PAYER_TYPE,
         "PaymentMethod": "Cash",
@@ -165,7 +193,7 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
         "CargoType": "Cargo",
         "Weight": str(round(max(weight, 0.5), 1)),
         "SeatsAmount": str(seats),
-        "ServiceType": "WarehouseWarehouse",
+        "ServiceType": service_type,
         "Description": description[:100],
         "Cost": str(int(cost)),
         "CitySender": s["city_ref"],
@@ -175,7 +203,7 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
         "SendersPhone": s["phone"],
         "CityRecipient": recipient_city_ref,
         "Recipient": recipient_ref,
-        "RecipientAddress": recipient_warehouse_ref,
+        "RecipientAddress": address_ref,
         "ContactRecipient": recipient_contact,
         "RecipientsPhone": phone,
     }

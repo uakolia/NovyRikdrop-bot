@@ -195,9 +195,13 @@ async def cb_approve(cb: CallbackQuery):
         await cb.answer("Лише для адміністратора", show_alert=True)
         return
     user_id = int(cb.data.split(":")[1])
-    info = storage.approve(user_id)
-    await cb.message.edit_text(cb.message.html_text +
-                               f"\n\n✅ Схвалено ({info.get('name', '')})")
+    who = f"@{cb.from_user.username}" if cb.from_user.username else str(cb.from_user.id)
+    info, err = await storage.approve(user_id, who)
+    note = f"\n\n✅ Схвалено ({info.get('name', '')})"
+    if err:
+        note += (f"\n⚠️ У таблицю не записалось: {err}\n"
+                 "Доступ діятиме до перезапуску — перевірте SHEET_WEBHOOK_URL")
+    await cb.message.edit_text(cb.message.html_text + note)
     try:
         await cb.bot.send_message(
             user_id, "✅ Вам відкрито доступ! Можете оформлювати замовлення.",
@@ -213,7 +217,8 @@ async def cb_deny(cb: CallbackQuery):
         await cb.answer("Лише для адміністратора", show_alert=True)
         return
     user_id = int(cb.data.split(":")[1])
-    storage.deny(user_id)
+    who = f"@{cb.from_user.username}" if cb.from_user.username else str(cb.from_user.id)
+    await storage.deny(user_id, who)
     await cb.message.edit_text(cb.message.html_text + "\n\n🚫 Відхилено")
     await cb.answer("Відхилено")
 
@@ -239,7 +244,8 @@ async def cmd_block(msg: Message):
     if len(parts) != 2 or not parts[1].isdigit():
         await msg.answer("Використання: <code>/block ID_користувача</code>")
         return
-    storage.deny(int(parts[1]))
+    who = f"@{msg.from_user.username}" if msg.from_user.username else str(msg.from_user.id)
+    await storage.deny(int(parts[1]), who)
     await msg.answer("🚫 Доступ закрито.")
 
 
@@ -257,6 +263,37 @@ async def cmd_reload(msg: Message):
                          for c in catalog.categories())
         await msg.answer(f"✅ Каталог оновлено: <b>{n}</b> товарів "
                          f"(було {before}).\n\n{cats}")
+
+
+@router.message(Command("pending"))
+async def cmd_pending(msg: Message):
+    """Хто чекає на схвалення."""
+    if not _is_admin(msg.from_user.id):
+        return
+    p = storage.pending_users()
+    if not p:
+        await msg.answer("Заявок на доступ немає.")
+        return
+    for uid, u in list(p.items())[:20]:
+        uname = f"@{u.get('username')}" if u.get("username") else "без username"
+        await msg.answer(f"⏳ <b>{u.get('name', '?')}</b> ({uname}, "
+                         f"id <code>{uid}</code>)",
+                         reply_markup=kb.approve_kb(int(uid)))
+
+
+@router.message(Command("sync"))
+async def cmd_sync(msg: Message):
+    """Перечитати список дропшиперів із Google Таблиці."""
+    if not _is_admin(msg.from_user.id):
+        return
+    n, err = await storage.sync_from_sheet(force=True)
+    if err:
+        await msg.answer(f"⚠️ Не вдалося: {err}")
+        return
+    users = storage.approved_users()
+    lines = [f"• {u.get('name') or '?'} (@{u.get('username') or '—'}, id {uid})"
+             for uid, u in users.items()]
+    await msg.answer(f"✅ Синхронізовано: {n} схвалених\n" + "\n".join(lines[:30]))
 
 
 @router.message(Command("catalog"))

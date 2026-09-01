@@ -39,7 +39,8 @@ async def cmd_start(msg: Message):
     storage.add_pending(user.id, user.full_name, user.username or "")
     await msg.answer(
         WELCOME + "\n⏳ Ваш запит на доступ надіслано менеджеру. "
-        "Щойно вас схвалять — прийде повідомлення.")
+        "Щойно вас схвалять — прийде повідомлення.",
+        reply_markup=kb.support_only_menu())
     if config.ADMIN_CHAT_ID:
         uname = f"@{user.username}" if user.username else "без username"
         await msg.bot.send_message(

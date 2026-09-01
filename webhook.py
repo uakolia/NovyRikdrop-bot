@@ -93,6 +93,7 @@ async def handle_weblium(request: web.Request):
             order["comment"] = f"Авто-ТТН не вдалась: {e}"
 
     orders.save_csv(order)
+    orders.save_local(order)
     await orders.send_to_sheet(order)
     bot = request.app["bot"]
     if config.ADMIN_CHAT_ID:
