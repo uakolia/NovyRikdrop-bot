@@ -17,9 +17,13 @@ class NPError(Exception):
     pass
 
 
-async def _call(model, method, props):
+async def _call(model, method, props, api_key: str | None = None):
+    import np_store
+    key = api_key or np_store.get("api_key")
+    if not key:
+        raise NPError("не задано API-ключ Нової Пошти — адмін: команда /np_setup")
     payload = {
-        "apiKey": config.NP_API_KEY,
+        "apiKey": key,
         "modelName": model,
         "calledMethod": method,
         "methodProperties": props,
@@ -100,6 +104,40 @@ async def create_recipient(fio: str, phone: str):
     return cp["Ref"], contact_ref
 
 
+async def get_sender_info(api_key: str):
+    """Для /np_setup: контрагент-відправник і контактна особа за ключем.
+
+    Повертає {sender_ref, sender_name, contact_ref, contact_name, phone}.
+    """
+    senders = await _call("Counterparty", "getCounterparties",
+                          {"CounterpartyProperty": "Sender", "Page": "1"},
+                          api_key=api_key)
+    if not senders:
+        raise NPError("у цьому кабінеті немає контрагента-відправника")
+    sender = senders[0]
+    contacts = await _call("Counterparty", "getCounterpartyContactPersons",
+                           {"Ref": sender["Ref"], "Page": "1"}, api_key=api_key)
+    if not contacts:
+        raise NPError("у відправника немає контактної особи")
+    contact = contacts[0]
+    return {
+        "sender_ref": sender["Ref"],
+        "sender_name": sender.get("Description", ""),
+        "contact_ref": contact["Ref"],
+        "contact_name": contact.get("Description", ""),
+        "phone": contact.get("Phones", "") or "",
+    }
+
+
+async def all_warehouses(city_ref: str, api_key: str | None = None):
+    """Всі відділення міста (для вибору звідки відправляєте)."""
+    data = await _call("Address", "getWarehouses",
+                       {"CityRef": city_ref, "Limit": "500"}, api_key=api_key)
+    return [{"ref": w["Ref"], "name": w.get("Description", ""),
+             "number": w.get("Number", "")}
+            for w in data if w.get("TypeOfWarehouse") != TYPE_POSTOMAT]
+
+
 async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
                      fio: str, phone: str, description: str, cost: float,
                      weight: float, volume: float | None, seats: int = 1):
@@ -107,10 +145,10 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
 
     Повертає {ttn, ref, cost_delivery, estimated_date}.
     """
-    for v in ("NP_SENDER_REF", "NP_SENDER_CONTACT_REF", "NP_SENDER_CITY_REF",
-              "NP_SENDER_WAREHOUSE_REF", "NP_SENDER_PHONE"):
-        if not getattr(config, v):
-            raise NPError(f"не налаштовано {v} у .env (запустіть setup_np.py)")
+    import np_store
+    if not np_store.is_ready():
+        raise NPError("відправника не налаштовано — адмін: команда /np_setup")
+    s = np_store.all_values()
 
     recipient_ref, recipient_contact = await create_recipient(fio, phone)
 
@@ -124,11 +162,11 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
         "ServiceType": "WarehouseWarehouse",
         "Description": description[:100],
         "Cost": str(int(cost)),
-        "CitySender": config.NP_SENDER_CITY_REF,
-        "Sender": config.NP_SENDER_REF,
-        "SenderAddress": config.NP_SENDER_WAREHOUSE_REF,
-        "ContactSender": config.NP_SENDER_CONTACT_REF,
-        "SendersPhone": config.NP_SENDER_PHONE,
+        "CitySender": s["city_ref"],
+        "Sender": s["sender_ref"],
+        "SenderAddress": s["warehouse_ref"],
+        "ContactSender": s["contact_ref"],
+        "SendersPhone": s["phone"],
         "CityRecipient": recipient_city_ref,
         "Recipient": recipient_ref,
         "RecipientAddress": recipient_warehouse_ref,
