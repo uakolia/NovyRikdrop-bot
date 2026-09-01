@@ -96,8 +96,53 @@ def _ua_name(full: str) -> str:
     parts = [p.strip() for p in full.split("/")]
     for p in reversed(parts):
         if re.search(r"[А-Яа-яІіЇїЄєҐґ]", p):
-            return p
-    return full.strip()
+            return tidy_name(p)
+    return tidy_name(full)
+
+
+# латинські двійники кириличних літер (трапляються в прайсі: 'Cільвія')
+_LATIN_TWINS = str.maketrans({"C": "С", "c": "с", "P": "Р", "p": "р", "A": "А",
+                              "a": "а", "E": "Е", "e": "е", "T": "Т", "O": "О",
+                              "o": "о", "I": "І", "i": "і", "K": "К", "M": "М",
+                              "H": "Н", "B": "В", "X": "Х", "x": "х", "y": "у"})
+
+# точкові виправлення одруківок у назвах
+_FIXES = {
+    "гірдянда": "Гірлянда",
+    "гірлянда": "Гірлянда",
+    "вінок": "Віночок",
+}
+
+
+def _fix_latin(word: str) -> str:
+    """Якщо в слові кирилиця й одинокі латинські двійники — замінити їх."""
+    has_cyr = bool(re.search(r"[А-Яа-яІіЇїЄєҐґ]", word))
+    has_lat = bool(re.search(r"[A-Za-z]", word))
+    if has_cyr and has_lat and not re.fullmatch(r"[A-Za-z]+", word):
+        return word.translate(_LATIN_TWINS)
+    return word
+
+
+def tidy_name(name: str) -> str:
+    """Охайна назва: без зайвих лапок, з великої літери, без одруківок."""
+    n = re.sub(r"\s+", " ", name).strip().strip('"«»').strip()
+    n = " ".join(_fix_latin(w) for w in n.split())
+    n = n.replace('"', "").replace("«", "").replace("»", "")
+
+    words = n.split()
+    if words:
+        low = words[0].lower()
+        if low in _FIXES:
+            words[0] = _FIXES[low]
+        elif words[0].islower():
+            words[0] = words[0][0].upper() + words[0][1:]
+        n = " ".join(words)
+
+    # «Вічнозелений Вінок» -> «Віночок Вічнозелений»
+    m = re.fullmatch(r"(.+?)\s+(Вінок|Віночок)", n, re.IGNORECASE)
+    if m:
+        n = f"Віночок {m.group(1)}"
+    return n.strip()
 
 
 def parse_rows(rows):
@@ -177,6 +222,17 @@ def parse_rows(rows):
                 if seen[key].get(k) in (None, "") and v not in (None, ""):
                     seen[key][k] = v
     result = list(seen.values())
+
+    # назва має починатися з типу товару: «Віночок ...», «Гірлянда ...» тощо
+    _NOUNS = (("WR-", "Віночок"), ("GR-", "Гірлянда"), ("IK-", "Ікебана"),
+              ("WT-", "Настінна ялинка"), ("GT-", "Подарункова ялинка"))
+    for it in result:
+        art = it["article"].upper()
+        for pref, noun in _NOUNS:
+            if art.startswith(pref):
+                if not it["model_ua"].lower().startswith(noun.lower()):
+                    it["model_ua"] = f"{noun} {it['model_ua']}"
+                break
 
     # добір ваги/об'єму, де їх немає в прайсі: оцінка за товарами тієї ж моделі
     # (вага ~ пропорційна висоті^2), інакше за середнім по висоті в каталозі

@@ -1966,7 +1966,7 @@
   },
   {
    "model": "Wreath Ukrainian/Український",
-   "model_ua": "Український",
+   "model_ua": "Віночок Український",
    "article": "WR-UKR-Сr3-d Ø30",
    "height_m": null,
    "size": "",
@@ -1983,7 +1983,7 @@
   },
   {
    "model": "Wreath Ukrainian/Український",
-   "model_ua": "Український",
+   "model_ua": "Віночок Український",
    "article": "WR-UKR-Сr3-d Ø45",
    "height_m": null,
    "size": "",
@@ -2000,7 +2000,7 @@
   },
   {
    "model": "Wreath Polissian/Віночок \"Поліський\"",
-   "model_ua": "Віночок \"Поліський\"",
+   "model_ua": "Віночок Поліський",
    "article": "WR-PL-Сr4-d Ø30",
    "height_m": null,
    "size": "",
@@ -2017,7 +2017,7 @@
   },
   {
    "model": "Wreath Polissian/Віночок \"Поліський\"",
-   "model_ua": "Віночок \"Поліський\"",
+   "model_ua": "Віночок Поліський",
    "article": "WR-PL-Сr4-d Ø45",
    "height_m": null,
    "size": "",
@@ -2034,7 +2034,7 @@
   },
   {
    "model": "Wreath Evergreen/ Вічнозелений Вінок",
-   "model_ua": "Вічнозелений Вінок",
+   "model_ua": "Віночок Вічнозелений",
    "article": "WR-Ev-Сr1-d Ø30",
    "height_m": null,
    "size": "",
@@ -2051,7 +2051,7 @@
   },
   {
    "model": "Wreath Evergreen/ Вічнозелений Вінок",
-   "model_ua": "Вічнозелений Вінок",
+   "model_ua": "Віночок Вічнозелений",
    "article": "WR-Ev-Сr1-d Ø45",
    "height_m": null,
    "size": "",
@@ -2221,7 +2221,7 @@
   },
   {
    "model": "Wreath Polissian Frosted/Віночок Поліський засніжений\"",
-   "model_ua": "Віночок Поліський засніжений\"",
+   "model_ua": "Віночок Поліський засніжений",
    "article": "WR-PL-Сr4-d Ø30Fr",
    "height_m": null,
    "size": "",
@@ -2255,7 +2255,7 @@
   },
   {
    "model": "Garland Ukrainian/гірлянда Українська",
-   "model_ua": "гірлянда Українська",
+   "model_ua": "Гірлянда Українська",
    "article": "GR-UKR-Сr3-100",
    "height_m": null,
    "size": "",
@@ -2272,7 +2272,7 @@
   },
   {
    "model": "Garland Ukrainian/гірлянда Українська",
-   "model_ua": "гірлянда Українська",
+   "model_ua": "Гірлянда Українська",
    "article": "GR-UKR-Сr3-270",
    "height_m": null,
    "size": "",
@@ -2289,7 +2289,7 @@
   },
   {
    "model": "Garland Polissian/Гірдянда Поліська",
-   "model_ua": "Гірдянда Поліська",
+   "model_ua": "Гірлянда Поліська",
    "article": "GR-PL-Сr4-100",
    "height_m": null,
    "size": "",
@@ -2306,7 +2306,7 @@
   },
   {
    "model": "Garland Polissian/Гірдянда Поліська",
-   "model_ua": "Гірдянда Поліська",
+   "model_ua": "Гірлянда Поліська",
    "article": "GR-PL-Сr4-270",
    "height_m": null,
    "size": "",
@@ -2493,7 +2493,7 @@
   },
   {
    "model": "Garland Grandia wide/ гірлянда Грандія широка",
-   "model_ua": "гірлянда Грандія широка",
+   "model_ua": "Гірлянда Грандія широка",
    "article": "GR-GR-wide Сr6-100",
    "height_m": null,
    "size": "",
@@ -2510,7 +2510,7 @@
   },
   {
    "model": "Garland Grandia wide/ гірлянда Грандія широка",
-   "model_ua": "гірлянда Грандія широка",
+   "model_ua": "Гірлянда Грандія широка",
    "article": "GR-GR-wide Сr6-270",
    "height_m": null,
    "size": "",
@@ -2731,7 +2731,7 @@
   },
   {
    "model": "Wall Tree Silvia Premium/ Настінна ялинка Cільвія Преміум",
-   "model_ua": "Настінна ялинка Cільвія Преміум",
+   "model_ua": "Настінна ялинка Сільвія Преміум",
    "article": "WT-SP-BR-3/9",
    "height_m": null,
    "size": "72 сm",
