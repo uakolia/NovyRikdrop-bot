@@ -82,7 +82,7 @@ async def pick_model(cb: CallbackQuery, state: FSMContext):
     await state.update_data(cat_idx=cat_idx, model_idx=model_idx, model=model)
     await state.set_state(Order.variant)
     await cb.message.edit_text(
-        f"Модель: <b>{model}</b>\n\nОберіть розмір (ціни — ваш дроп-тариф):",
+        f"Модель: <b>{catalog.model_label(model)}</b>\n\nОберіть розмір (ціни — ваш дроп-тариф):",
         reply_markup=kb.variants_kb(cat_idx, model_idx))
     await cb.answer()
 

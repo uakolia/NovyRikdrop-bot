@@ -26,7 +26,8 @@ def models_kb(cat_idx: int, page: int = 0):
     cats = catalog.categories()
     ms = catalog.models(cats[cat_idx])
     chunk = ms[page * PER_PAGE:(page + 1) * PER_PAGE]
-    rows = [[InlineKeyboardButton(text=m, callback_data=f"mdl:{cat_idx}:{page * PER_PAGE + i}")]
+    rows = [[InlineKeyboardButton(text=catalog.model_label(m),
+                                  callback_data=f"mdl:{cat_idx}:{page * PER_PAGE + i}")]
             for i, m in enumerate(chunk)]
     nav = []
     if page > 0:

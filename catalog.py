@@ -94,6 +94,24 @@ def size_label(item) -> str:
     return s
 
 
+_SIZE_TAIL = re.compile(r"[-\s]*(?:d\s*Ø\s*)?\d+(?:/\d+)?[A-Za-zА-Яа-я]*$")
+
+
+def article_prefix(model_ua: str) -> str:
+    """Базовий артикул моделі без розміру: 'Cr3-150' → 'Cr3'."""
+    vs = variants(model_ua)
+    if not vs:
+        return ""
+    base = _SIZE_TAIL.sub("", vs[0]["article"]).strip(" -")
+    return base
+
+
+def model_label(model_ua: str) -> str:
+    """Назва моделі з артикулом: 'Українська (Cr3)'."""
+    pref = article_prefix(model_ua)
+    return f"{model_ua} ({pref})" if pref else model_ua
+
+
 def find_variant_short(model_ua: str, idx: int):
     v = variants(model_ua)
     return v[idx] if 0 <= idx < len(v) else None
