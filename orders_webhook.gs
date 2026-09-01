@@ -11,11 +11,13 @@
  */
 var HEADERS = ["№", "Дата", "Джерело", "ID дропшипера", "Дропшипер",
   "Артикул", "Товар", "Розмір", "К-сть", "Дроп-ціна", "Оплата",
-  "ПІБ отримувача", "Телефон", "Місто", "Відділення", "ТТН", "Статус", "Коментар"];
+  "ПІБ отримувача", "Телефон", "Місто", "Відділення", "ТТН", "Статус", "Коментар",
+  "Ціна продажу", "Передплата", "При отриманні"];
 
 var KEYS = ["order_no", "created_at", "source", "dropshipper_id", "dropshipper",
   "article", "product", "size", "qty", "price_drop", "payment",
-  "recipient_fio", "recipient_phone", "city", "warehouse", "ttn", "status", "comment"];
+  "recipient_fio", "recipient_phone", "city", "warehouse", "ttn", "status", "comment",
+  "sale_price", "prepaid", "cod_amount"];
 
 function doPost(e) {
   var data = JSON.parse(e.postData.contents);

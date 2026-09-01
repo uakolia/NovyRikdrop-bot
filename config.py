@@ -27,6 +27,8 @@ NP_PAYER_TYPE = os.getenv("NP_PAYER_TYPE", "Recipient")
 NP_MIN_WAREHOUSE_WEIGHT = float(os.getenv("NP_MIN_WAREHOUSE_WEIGHT", "30"))
 # створювати ТТН автоматично одразу після підтвердження замовлення
 NP_AUTO_TTN = os.getenv("NP_AUTO_TTN", "1") == "1"
+# додавати в ТТН «Контроль оплати» на суму «При отриманні» (1 — так)
+NP_PAYMENT_CONTROL = os.getenv("NP_PAYMENT_CONTROL", "1") == "1"
 
 # який дроп-тариф показувати дропшиперам: drop1 / drop2 / drop3
 PRICE_TIER = os.getenv("PRICE_TIER", "drop3")

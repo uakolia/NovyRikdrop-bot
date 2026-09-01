@@ -17,6 +17,8 @@ class Order(StatesGroup):
     variant = State()
     qty = State()
     payment = State()
+    sale_price = State()
+    prepaid = State()
     fio = State()
     phone = State()
     city = State()
@@ -107,20 +109,75 @@ async def pick_qty(cb: CallbackQuery, state: FSMContext):
     await state.set_state(Order.payment)
     await cb.message.edit_text(
         "💳 <b>Тип оплати</b>\n\n"
-        "📦 <b>Післяплата</b> — клієнт платить при отриманні на Новій Пошті\n"
-        "✅ <b>Передплата</b> — товар уже оплачено",
+        "📦 <b>Післяплата</b> — клієнт платить всю суму при отриманні\n"
+        "🔸 <b>Часткова передплата</b> — частину сплачено, решта при отриманні\n"
+        "✅ <b>Передплата</b> — товар уже повністю оплачено",
         reply_markup=kb.payment_kb())
     await cb.answer()
 
 
+FIO_PROMPT = ("👤 Введіть <b>ПІБ отримувача</b>\n"
+              "(Прізвище Ім'я По-батькові, наприклад: <i>Шевченко Тарас Григорович</i>)")
+
+
+def _amount(text: str) -> int | None:
+    digits = re.sub(r"[^\d]", "", text)
+    if digits.isdigit() and 50 <= int(digits) <= 500000:
+        return int(digits)
+    return None
+
+
 @router.callback_query(F.data.startswith("pay:"), Order.payment)
 async def pick_payment(cb: CallbackQuery, state: FSMContext):
-    await state.update_data(payment=cb.data.split(":", 1)[1])
-    await state.set_state(Order.fio)
-    await cb.message.edit_text(
-        "👤 Введіть <b>ПІБ отримувача</b>\n"
-        "(Прізвище Ім'я По-батькові, наприклад: <i>Шевченко Тарас Григорович</i>)")
+    payment = cb.data.split(":", 1)[1]
+    await state.update_data(payment=payment)
+    if payment == "передплата":
+        await state.update_data(sale_price=0, prepaid=0, cod_amount=0)
+        await state.set_state(Order.fio)
+        await cb.message.edit_text(FIO_PROMPT)
+    else:
+        await state.set_state(Order.sale_price)
+        await cb.message.edit_text(
+            "💰 Введіть <b>вашу ціну продажу</b> для клієнта, грн\n"
+            "(наприклад: <i>4500</i>)")
     await cb.answer()
+
+
+@router.message(Order.sale_price, F.text)
+async def input_sale_price(msg: Message, state: FSMContext):
+    amount = _amount(msg.text)
+    if amount is None:
+        await msg.answer("⚠️ Введіть суму числом у гривнях, наприклад <i>4500</i>:")
+        return
+    data = await state.get_data()
+    await state.update_data(sale_price=amount)
+    if data["payment"] == "часткова":
+        await state.set_state(Order.prepaid)
+        await msg.answer(f"🔸 Ціна продажу: {amount} грн\n\n"
+                         "Скільки клієнт <b>уже передплатив</b>, грн?")
+    else:  # післяплата — вся сума при отриманні
+        await state.update_data(prepaid=0, cod_amount=amount)
+        await state.set_state(Order.fio)
+        await msg.answer(FIO_PROMPT)
+
+
+@router.message(Order.prepaid, F.text)
+async def input_prepaid(msg: Message, state: FSMContext):
+    digits = re.sub(r"[^\d]", "", msg.text)
+    prepaid = int(digits) if digits.isdigit() else None
+    if prepaid is None:
+        await msg.answer("⚠️ Введіть суму передплати числом, наприклад <i>1000</i>:")
+        return
+    data = await state.get_data()
+    sale = data["sale_price"]
+    if prepaid <= 0 or prepaid >= sale:
+        await msg.answer(f"⚠️ Передплата має бути більшою за 0 і меншою за ціну "
+                         f"продажу ({sale} грн). Спробуйте ще раз:")
+        return
+    await state.update_data(prepaid=prepaid, cod_amount=sale - prepaid)
+    await state.set_state(Order.fio)
+    await msg.answer(f"✅ При отриманні клієнт сплатить: <b>{sale - prepaid} грн</b>\n\n"
+                     + FIO_PROMPT)
 
 
 @router.message(Order.fio, F.text)
@@ -226,18 +283,32 @@ async def pick_warehouse(cb: CallbackQuery, state: FSMContext):
     qty = data.get("qty", 1)
     await state.set_state(Order.confirm)
     total = f"{price * qty:,.0f}".replace(",", " ")
+    pay = _payment_lines(data)
     await cb.message.edit_text(
         "📋 <b>Перевірте замовлення</b>\n\n"
         f"🌲 {item['model_ua']} — {catalog.size_label(item)}\n"
         f"Артикул: <code>{item['article']}</code> × {qty}\n"
         f"💰 Дроп-ціна: {total} грн\n"
-        f"💳 Оплата: <b>{data['payment']}</b>\n\n"
+        f"{pay}\n\n"
         f"👤 {data['fio']}\n"
         f"📞 {data['phone']}\n"
         f"📍 {data['city']['name']}, {wh['name']}\n\n"
         "Все вірно?",
         reply_markup=kb.confirm_kb())
     await cb.answer()
+
+
+def _payment_lines(data) -> str:
+    p = data["payment"]
+    if p == "передплата":
+        return "💳 Оплата: <b>передплата</b> (оплачено повністю)"
+    if p == "часткова":
+        return (f"💳 Оплата: <b>часткова передплата</b>\n"
+                f"   Ціна продажу: {data['sale_price']} грн, "
+                f"передплачено: {data['prepaid']} грн\n"
+                f"   💵 При отриманні: <b>{data['cod_amount']} грн</b>")
+    return (f"💳 Оплата: <b>післяплата</b>\n"
+            f"   💵 При отриманні: <b>{data['cod_amount']} грн</b>")
 
 
 @router.callback_query(F.data == "confirm:yes", Order.confirm)
@@ -257,7 +328,11 @@ async def confirm_order(cb: CallbackQuery, state: FSMContext):
         size=catalog.size_label(item),
         qty=qty,
         price_drop=int(price * qty),
-        payment=data["payment"],
+        payment=("часткова передплата" if data["payment"] == "часткова"
+                 else data["payment"]),
+        sale_price=data.get("sale_price") or "",
+        prepaid=data.get("prepaid") or "",
+        cod_amount=data.get("cod_amount") or "",
         recipient_fio=data["fio"],
         recipient_phone=data["phone"],
         city=data["city"]["name"],
@@ -280,6 +355,7 @@ async def confirm_order(cb: CallbackQuery, state: FSMContext):
                 weight=(item["weight_kg"] or 5) * qty,
                 volume=(item.get("volume_m3") or 0) * qty or None,
                 seats=qty,
+                cod_amount=data.get("cod_amount") or 0,
             )
             order["ttn"] = res["ttn"]
             order["status"] = "ТТН створено"

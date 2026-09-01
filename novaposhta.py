@@ -145,8 +145,9 @@ async def all_warehouses(city_ref: str, api_key: str | None = None):
 
 async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
                      fio: str, phone: str, description: str, cost: float,
-                     weight: float, volume: float | None, seats: int = 1):
-    """Створити ТТН (без зворотної доставки/накладеного платежу).
+                     weight: float, volume: float | None, seats: int = 1,
+                     cod_amount: float = 0):
+    """Створити ТТН. cod_amount > 0 додає «Контроль оплати» на цю суму.
 
     Повертає {ttn, ref, cost_delivery, estimated_date}.
     """
@@ -180,6 +181,9 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
     }
     if volume:
         props["VolumeGeneral"] = str(round(volume, 3))
+    # Контроль оплати: клієнт платить суму у відділенні, НП переказує на IBAN
+    if cod_amount and config.NP_PAYMENT_CONTROL:
+        props["AfterpaymentOnGoodsCost"] = str(int(cod_amount))
     data = await _call("InternetDocument", "save", props)
     doc = data[0]
     return {

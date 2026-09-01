@@ -61,9 +61,11 @@ def qty_kb():
 
 def payment_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📦 Післяплата (клієнт платить при отриманні)",
+        [InlineKeyboardButton(text="📦 Післяплата (вся сума при отриманні)",
                               callback_data="pay:післяплата")],
-        [InlineKeyboardButton(text="✅ Передплата (вже оплачено)",
+        [InlineKeyboardButton(text="🔸 Часткова передплата",
+                              callback_data="pay:часткова")],
+        [InlineKeyboardButton(text="✅ Передплата (вже оплачено повністю)",
                               callback_data="pay:передплата")],
         [InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
     ])

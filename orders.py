@@ -12,7 +12,7 @@ ORDERS_CSV = os.path.join(config.DATA_DIR, "orders.csv")
 FIELDS = ["order_no", "created_at", "source", "dropshipper_id", "dropshipper",
           "article", "product", "size", "qty", "price_drop", "payment",
           "recipient_fio", "recipient_phone", "city", "warehouse",
-          "ttn", "status", "comment"]
+          "ttn", "status", "comment", "sale_price", "prepaid", "cod_amount"]
 
 
 def save_csv(order: dict):
@@ -52,11 +52,18 @@ def new_order(**kw) -> dict:
 
 def admin_text(order: dict) -> str:
     pay = order["payment"]
+    pay_line = f"💰 Дроп-ціна: {order['price_drop']} грн | Оплата: <b>{pay}</b>"
+    if order.get("cod_amount"):
+        extra = f" | 💵 При отриманні: <b>{order['cod_amount']} грн</b>"
+        if order.get("prepaid"):
+            extra = (f" | Продаж: {order['sale_price']} грн, "
+                     f"передплата: {order['prepaid']} грн" + extra)
+        pay_line += extra
     lines = [
         f"🆕 <b>Замовлення №{order['order_no']}</b> ({order['source']})",
         f"🌲 {order['product']} — {order['size']}",
         f"Артикул: <code>{order['article']}</code> × {order['qty']}",
-        f"💰 Дроп-ціна: {order['price_drop']} грн | Оплата: <b>{pay}</b>",
+        pay_line,
         "",
         f"👤 {order['recipient_fio']}",
         f"📞 {order['recipient_phone']}",
