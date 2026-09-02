@@ -260,10 +260,13 @@ async def cmd_reload(msg: Message):
     if err:
         await msg.answer(f"⚠️ Не вдалося: {err}")
     else:
-        cats = ", ".join(f"{c} — {sum(1 for i in catalog.items() if catalog.category_of(i) == c)}"
-                         for c in catalog.categories())
+        cats = "\n".join(
+            f"• {c} — {sum(1 for i in catalog.items() if catalog.category_of(i) == c)}"
+            for c in catalog.categories())
+        rep = catalog.last_report()
+        tabs = ("\n\n<i>Вкладки: " + "; ".join(rep) + "</i>") if rep else ""
         await msg.answer(f"✅ Каталог оновлено: <b>{n}</b> товарів "
-                         f"(було {before}).\n\n{cats}")
+                         f"(було {before}).\n\n{cats}{tabs}"[:4000])
 
 
 @router.message(Command("pending"))

@@ -6,7 +6,7 @@ import re
 import aiohttp
 
 import config
-from catalog_parser import parse_csv_text
+from catalog_parser import parse_csv_text, parse_rows
 
 CATALOG_PATH = os.path.join(os.path.dirname(__file__), "catalog.json")
 
@@ -153,6 +153,53 @@ def find_variant_short(model_ua: str, idx: int):
 
 SHEET_BASE = "https://docs.google.com/spreadsheets/d/{sid}"
 
+_TR = re.compile(r"<tr\b[^>]*>(.*?)</tr>", re.S | re.I)
+_TD = re.compile(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", re.S | re.I)
+_TAG = re.compile(r"<[^>]+>")
+
+
+def _html_rows(html: str):
+    """Рядки таблиці з HTML-експорту аркуша Google Таблиці."""
+    import html as _html
+    for tr in _TR.findall(html):
+        cells = []
+        for cell in _TD.findall(tr):
+            text = _TAG.sub(" ", cell)
+            text = _html.unescape(text)
+            cells.append(re.sub(r"\s+", " ", text).strip())
+        if cells:
+            yield [""] + cells  # зсув на 1: парсер очікує технічну колонку зліва
+
+
+async def _fetch_bytes(session, url):
+    async with session.get(url, timeout=aiohttp.ClientTimeout(total=180)) as r:
+        return r.status, (await r.read() if r.status == 200 else b"")
+
+
+async def _all_tabs_via_zip(session, sid):
+    """Усі вкладки одним архівом: export?format=zip → HTML на кожен аркуш."""
+    import io
+    import zipfile
+    status, blob = await _fetch_bytes(
+        session, SHEET_BASE.format(sid=sid) + "/export?format=zip")
+    if status != 200 or not blob:
+        return None, f"HTTP {status}"
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(blob))
+    except zipfile.BadZipFile:
+        return None, "Google віддав не архів"
+    tabs = []
+    for name in zf.namelist():
+        if not name.lower().endswith((".html", ".htm")):
+            continue
+        try:
+            html = zf.read(name).decode("utf-8", "replace")
+        except Exception:  # noqa: BLE001
+            continue
+        items = parse_rows(_html_rows(html))
+        tabs.append((name.rsplit("/", 1)[-1].rsplit(".", 1)[0], items))
+    return tabs, None
+
 
 async def _fetch(session, url):
     async with session.get(url, timeout=aiohttp.ClientTimeout(total=90)) as r:
@@ -174,11 +221,30 @@ async def _discover_gids(session, sid):
 
 
 async def reload_from_google():
-    """Перечитати прайс із Google Таблиці — всі вкладки. Повертає (к-сть, помилка)."""
+    """Перечитати прайс із Google Таблиці — всі вкладки. Повертає (к-сть, помилка).
+
+    Основний шлях — export?format=zip: один архів із HTML кожної вкладки.
+    Резерв — CSV по кожному gid (gid'и з PRICELIST_GIDS або зі сторінки таблиці).
+    """
     sid = config.PRICELIST_SHEET_ID
     export = SHEET_BASE.format(sid=sid) + "/export?format=csv"
     try:
         async with aiohttp.ClientSession() as s:
+            # --- спроба 1: усі вкладки одним архівом
+            tabs, zip_err = await _all_tabs_via_zip(s, sid)
+            if tabs:
+                merged, report = {}, []
+                for name, items in tabs:
+                    if items:
+                        report.append(f"{name}: {len(items)}")
+                        for it in items:
+                            merged.setdefault(it["article"], it)
+                if merged:
+                    saved = _commit(merged, len(tabs))
+                    if saved[1] is None:
+                        _last_report[:] = report
+                    return saved
+
             gids = config.PRICELIST_GIDS or await _discover_gids(s, sid)
 
             merged, ok_tabs, last_status = {}, 0, None
@@ -208,19 +274,29 @@ async def reload_from_google():
                            "«Усі, хто має посилання — Переглядач»")
             return 0, f"не вдалося прочитати таблицю (HTTP {last_status})"
 
-        new_items = list(merged.values())
-        current = len(items_or_empty())
-        # запобіжник: не даємо каталогу «схуднути» через недочитані вкладки
-        if current and len(new_items) < current * 0.8:
-            return 0, (f"розпізнано лише {len(new_items)} товарів із {ok_tabs} вкладок, "
-                       f"а в каталозі зараз {current}. Схоже, прочиталися не всі "
-                       "вкладки — оновлення скасовано, каталог не змінено")
-        if len(new_items) < 10:
-            return 0, f"розпізнано лише {len(new_items)} товарів — оновлення скасовано"
-
-        _catalog["items"] = new_items
-        with open(CATALOG_PATH, "w", encoding="utf-8") as f:
-            json.dump(_catalog, f, ensure_ascii=False, indent=1)
-        return len(new_items), None
+        return _commit(merged, ok_tabs)
     except Exception as e:  # noqa: BLE001
         return 0, str(e)
+
+
+_last_report: list[str] = []
+
+
+def last_report() -> list[str]:
+    return list(_last_report)
+
+
+def _commit(merged: dict, tabs_count: int):
+    """Записати каталог із запобіжником проти втрати товарів."""
+    new_items = list(merged.values())
+    current = len(items_or_empty())
+    if current and len(new_items) < current * 0.8:
+        return 0, (f"розпізнано лише {len(new_items)} товарів із {tabs_count} вкладок, "
+                   f"а в каталозі зараз {current}. Схоже, прочиталися не всі "
+                   "вкладки — оновлення скасовано, каталог не змінено")
+    if len(new_items) < 10:
+        return 0, f"розпізнано лише {len(new_items)} товарів — оновлення скасовано"
+    _catalog["items"] = new_items
+    with open(CATALOG_PATH, "w", encoding="utf-8") as f:
+        json.dump(_catalog, f, ensure_ascii=False, indent=1)
+    return len(new_items), None
