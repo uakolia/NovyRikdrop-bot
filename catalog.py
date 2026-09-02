@@ -267,6 +267,18 @@ async def reload_from_google():
                            "«Усі, хто має посилання — Переглядач»")
             return 0, f"не вдалося прочитати таблицю (HTTP {last_status})"
 
+        # якщо якась вкладка віддала 0 позицій — читання неповне, тому
+        # старі товари з непрочитаних вкладок зберігаємо, а не втрачаємо
+        empty_tabs = [r for r in report if r.endswith(": 0") or "HTTP" in r]
+        kept = 0
+        if empty_tabs:
+            for old in items_or_empty():
+                if old["article"] not in merged:
+                    merged[old["article"]] = old
+                    kept += 1
+            if kept:
+                report.append(f"збережено з попереднього каталогу: {kept}")
+
         saved = _commit(merged, ok_tabs)
         if saved[1] is None:
             _last_report[:] = report
