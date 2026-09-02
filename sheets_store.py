@@ -39,12 +39,26 @@ async def _post(payload: dict):
         return None, str(e)
 
 
+def _hint(text: str) -> str:
+    """Витягти з HTML-відповіді Google щось, що пояснює причину."""
+    import re as _re
+    m = _re.search(r"<title[^>]*>(.*?)</title>", text, _re.S | _re.I)
+    title = (m.group(1).strip() if m else "")[:80]
+    body = _re.sub(r"<[^>]+>", " ", text)
+    body = _re.sub(r"\s+", " ", body).strip()[:160]
+    if "authoriz" in text.lower() or "sign in" in text.lower() or "Увійти" in text:
+        return "Google просить авторизацію — у розгортанні доступ має бути «Усі» (Anyone)"
+    if "Moved Temporarily" in text or "moved" in text.lower():
+        return "Google повернув переадресацію без даних"
+    return f"відповідь Google: {title or body or 'порожня'}"
+
+
 def _parse(text: str):
-    """Apps Script без doGet віддає HTML — показуємо зрозуміле пояснення."""
+    """Apps Script без doGet (або з помилкою) віддає HTML замість JSON."""
     try:
         return json.loads(text), None
     except ValueError:
-        return None, NEED_UPDATE
+        return None, f"{NEED_UPDATE}\n\n🔎 {_hint(text)}"
 
 
 async def _get(params: dict):
