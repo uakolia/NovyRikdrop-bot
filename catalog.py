@@ -117,10 +117,18 @@ def article_prefix(model_ua: str) -> str:
     return base
 
 
-def model_label(model_ua: str) -> str:
-    """Назва моделі з артикулом: 'Українська (Cr3)'."""
+def model_label(model_ua: str, user_id: int | None = None) -> str:
+    """Назва моделі з артикулом: 'Українська (Cr3)'.
+
+    Якщо у дропшипера є власна назва — показуємо її (артикул лишаємо,
+    щоб можна було звіритися з прайсом і швидко знайти позицію в підтримці).
+    """
+    import aliases
     pref = article_prefix(model_ua)
-    return f"{model_ua} ({pref})" if pref else model_ua
+    vs = variants(model_ua)
+    shown = aliases.model_name(user_id, model_ua,
+                               vs[0]["article"] if vs else "")
+    return f"{shown} ({pref})" if pref else shown
 
 
 _TYPE_WORDS = ("віночок", "гірлянда", "ікебана", "настінна", "подарункова",

@@ -7,6 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (CallbackQuery, InlineKeyboardButton,
                            InlineKeyboardMarkup, Message)
 
+import aliases
 import catalog, config, keyboards as kb, novaposhta as np, orders, payment, storage
 
 router = Router()
@@ -60,6 +61,11 @@ def _skip_back_kb(step: str, skip_data: str, skip_text: str):
                                                  callback_data=skip_data)]])
 
 
+def _uid(target) -> int | None:
+    u = getattr(target, "from_user", None)
+    return u.id if u else None
+
+
 async def _send(target, text, **kw):
     """Показати крок: для callback — редагуванням, для message — новим."""
     if isinstance(target, CallbackQuery):
@@ -85,16 +91,17 @@ async def show_model(target, state: FSMContext, page: int = 0):
     await state.set_state(Order.model)
     cat = catalog.categories()[data["cat_idx"]]
     await _send(target, f"Категорія: <b>{cat}</b>\n\nОберіть модель:",
-                reply_markup=kb.models_kb(data["cat_idx"], page))
+                reply_markup=kb.models_kb(data["cat_idx"], page, _uid(target)))
 
 
 async def show_variant(target, state: FSMContext):
     data = await state.get_data()
     await state.set_state(Order.variant)
     await _send(target,
-                f"Модель: <b>{catalog.model_label(data['model'])}</b>\n\n"
-                "Оберіть розмір (ціни — ваш дроп-тариф):",
-                reply_markup=kb.variants_kb(data["cat_idx"], data["model_idx"]))
+                f"Модель: <b>{catalog.model_label(data['model'], _uid(target))}</b>"
+                "\n\nОберіть розмір (ціни — ваш дроп-тариф):",
+                reply_markup=kb.variants_kb(data["cat_idx"], data["model_idx"],
+                                            _uid(target)))
 
 
 async def show_qty(target, state: FSMContext):
@@ -102,7 +109,8 @@ async def show_qty(target, state: FSMContext):
     v = catalog.by_article(data["article"])
     await state.set_state(Order.qty)
     await _send(target,
-                f"🌲 <b>{v['model_ua']}</b> — {catalog.size_label(v)}\n"
+                f"🌲 <b>{aliases.item_name(_uid(target), v)}</b> — "
+                f"{catalog.size_label(v)}\n"
                 f"Артикул: <code>{v['article']}</code>\n"
                 f"Вага: ~{v['weight_kg']:g} кг\n\nКількість:",
                 reply_markup=kb.qty_kb())
@@ -262,7 +270,8 @@ async def show_confirm(target, state: FSMContext):
     await state.set_state(Order.confirm)
     await _send(target,
                 "📋 <b>Перевірте замовлення</b>\n\n"
-                f"🌲 {item['model_ua']} — {catalog.size_label(item)}\n"
+                f"🌲 {aliases.item_name(_uid(target), item)} — "
+                f"{catalog.size_label(item)}\n"
                 f"Артикул: <code>{item['article']}</code> × {qty}\n"
                 f"💰 Дроп-ціна: {total} грн\n"
                 f"{_payment_lines(data)}\n\n"
@@ -281,7 +290,7 @@ async def show_payment_proof(target, state: FSMContext):
                              data.get("cod_amount"))
     await state.update_data(due_amount=due)
     await state.set_state(Order.payment_proof)
-    hint = f"{item['model_ua']} {catalog.size_label(item)}"
+    hint = f"{aliases.item_name(_uid(target), item)} {catalog.size_label(item)}"
     await _send(target, payment.details_text(due, hint),
                 reply_markup=_skip_back_kb("payment_proof", "proof:later",
                                            "⏭ Надішлю чек пізніше"))
@@ -783,7 +792,7 @@ async def _finalize(target, state: FSMContext, *, proof_file_id, create_ttn: boo
 
     await out.edit_text(
         f"✅ <b>Замовлення №{order['order_no']} прийнято!</b>\n\n"
-        f"🌲 {order['product']} — {order['size']} × {qty}\n"
+        f"🌲 {aliases.item_name(user.id, item)} — {order['size']} × {qty}\n"
         f"👤 {order['recipient_fio']}\n"
         f"{_address_line(data)}\n"
         f"💳 {order['payment']}"

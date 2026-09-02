@@ -8,7 +8,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (CallbackQuery, InlineKeyboardButton,
                            InlineKeyboardMarkup, Message)
 
-import catalog, config, keyboards as kb, storage
+import aliases
+import catalog, config, keyboards as kb, sheets_store, storage
 import novaposhta as np
 import np_store
 
@@ -290,10 +291,91 @@ async def cmd_sync(msg: Message):
     if err:
         await msg.answer(f"⚠️ Не вдалося: {err}")
         return
+    n_alias, alias_err = await aliases.sync_from_sheet()
     users = storage.approved_users()
     lines = [f"• {u.get('name') or '?'} (@{u.get('username') or '—'}, id {uid})"
              for uid, u in users.items()]
-    await msg.answer(f"✅ Синхронізовано: {n} схвалених\n" + "\n".join(lines[:30]))
+    tail = f"\n🏷 Власних назв: {n_alias}"
+    if alias_err:
+        tail += f" ⚠️ {alias_err}"
+    await msg.answer(f"✅ Синхронізовано: {n} схвалених\n" + "\n".join(lines[:30]) + tail)
+
+
+ALIAS_HELP = (
+    "🏷 <b>Власні назви товарів</b>\n\n"
+    "Дропшипер бачить свої назви, а в ТТН і журналі лишається наша.\n\n"
+    "<b>Задати:</b>\n"
+    "<code>/alias ID ключ = Своя назва</code>\n\n"
+    "Ключ — <b>модель</b> (діє на всі розміри) або <b>артикул</b> (лише цей розмір):\n"
+    "<code>/alias 123456 Грандія = Ялинка Лапландія</code>\n"
+    "<code>/alias 123456 Cr6G-220 = Лапландія 2.2</code>\n\n"
+    "<b>Прибрати:</b> <code>/alias ID ключ =</code>\n"
+    "<b>Подивитися:</b> <code>/aliases ID</code>\n\n"
+    "Так само можна правити в таблиці, аркуш «Назви товарів», далі /sync"
+)
+
+
+@router.message(Command("alias"))
+async def cmd_alias(msg: Message):
+    if not _is_admin(msg.from_user.id):
+        return
+    body = msg.text.split(maxsplit=1)
+    if len(body) < 2 or "=" not in body[1]:
+        await msg.answer(ALIAS_HELP)
+        return
+    left, name = body[1].split("=", 1)
+    parts = left.split(maxsplit=1)
+    if len(parts) < 2 or not parts[0].isdigit():
+        await msg.answer(ALIAS_HELP)
+        return
+    uid, key, name = int(parts[0]), parts[1].strip(), name.strip()
+
+    if not name:
+        removed = aliases.remove_alias(uid, key)
+        err = await sheets_store.push_alias(uid, key, "")
+        txt = "🗑 Назву прибрано." if removed else "Такої назви не було."
+        await msg.answer(txt + (f"\n⚠️ У таблиці не оновилось: {err}" if err else ""))
+        return
+
+    # перевіряємо, що ключ існує в каталозі
+    item = catalog.by_article(key)
+    known = bool(item) or any(m.lower() == key.lower()
+                              for c in catalog.categories()
+                              for m in catalog.models(c))
+    aliases.set_alias(uid, key, name)
+    err = await sheets_store.push_alias(uid, key, name)
+    warn = "" if known else ("\n⚠️ У каталозі немає такої моделі/артикула — "
+                             "назва збережена, але може не показатись")
+    if err:
+        warn += f"\n⚠️ У таблицю не записалось: {err}"
+    await msg.answer(f"✅ Для id <code>{uid}</code>: «{key}» → <b>{name}</b>{warn}")
+
+
+@router.message(Command("aliases"))
+async def cmd_aliases(msg: Message):
+    if not _is_admin(msg.from_user.id):
+        return
+    parts = msg.text.split()
+    if len(parts) == 2 and parts[1].isdigit():
+        d = aliases.for_user(int(parts[1]))
+        if not d:
+            await msg.answer("Для цього дропшипера власних назв немає.")
+            return
+        lines = [f"• <code>{k}</code> → {v}" for k, v in d.items()]
+        await msg.answer(f"🏷 Назви для id <code>{parts[1]}</code>:\n" + "\n".join(lines))
+        return
+    # без ID — зведення по всіх
+    total = 0
+    blocks = []
+    for uid in list(aliases._cache):
+        d = aliases.for_user(int(uid))
+        total += len(d)
+        blocks.append(f"<b>id {uid}</b> — {len(d)} назв")
+    if not blocks:
+        await msg.answer("Власних назв ще немає.\n\n" + ALIAS_HELP)
+        return
+    await msg.answer(f"🏷 Усього назв: {total}\n" + "\n".join(blocks)
+                     + "\n\nДеталі: <code>/aliases ID</code>")
 
 
 @router.message(Command("catalog"))

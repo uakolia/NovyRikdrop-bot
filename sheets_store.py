@@ -6,6 +6,8 @@
   GET  ?what=dropshippers          — список схвалених
   GET  ?what=orders&id=<tg_id>     — замовлення дропшипера
   GET  ?what=maxorder              — максимальний номер замовлення
+  GET  ?what=aliases               — власні назви товарів дропшиперів
+  POST {type: "alias", ...}        — додати/оновити власну назву
 """
 import json
 
@@ -93,6 +95,23 @@ async def fetch_orders(user_id: int, limit: int = 10):
     if rows is None:
         return None, NEED_UPDATE
     return rows, None
+
+
+async def fetch_aliases():
+    """[{tg_id, key, name}] — власні назви товарів дропшиперів."""
+    data, err = await _get({"what": "aliases"})
+    if err:
+        return None, err
+    rows = (data or {}).get("rows")
+    if rows is None:
+        return None, NEED_UPDATE
+    return rows, None
+
+
+async def push_alias(user_id: int, key: str, name: str):
+    _, err = await _post({"type": "alias", "tg_id": str(user_id),
+                          "key": key, "name": name})
+    return err
 
 
 async def fetch_max_order_no():

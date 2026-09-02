@@ -1,6 +1,7 @@
 """Інлайн-клавіатури."""
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+import aliases
 import catalog
 
 PER_PAGE = 8
@@ -30,11 +31,11 @@ def categories_kb():
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def models_kb(cat_idx: int, page: int = 0):
+def models_kb(cat_idx: int, page: int = 0, user_id: int | None = None):
     cats = catalog.categories()
     ms = catalog.models(cats[cat_idx])
     chunk = ms[page * PER_PAGE:(page + 1) * PER_PAGE]
-    rows = [[InlineKeyboardButton(text=catalog.model_label(m),
+    rows = [[InlineKeyboardButton(text=catalog.model_label(m, user_id),
                                   callback_data=f"mdl:{cat_idx}:{page * PER_PAGE + i}")]
             for i, m in enumerate(chunk)]
     nav = []
@@ -49,7 +50,7 @@ def models_kb(cat_idx: int, page: int = 0):
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def variants_kb(cat_idx: int, model_idx: int):
+def variants_kb(cat_idx: int, model_idx: int, user_id: int | None = None):
     cats = catalog.categories()
     model = catalog.models(cats[cat_idx])[model_idx]
     rows = []

@@ -8,6 +8,7 @@ from aiogram.enums import ParseMode
 from aiohttp import web
 
 import access
+import aliases
 import catalog, config
 import storage
 import handlers_admin as admin
@@ -46,6 +47,11 @@ async def main():
         log.warning("Дропшипери з таблиці не підтягнулись: %s", err)
     else:
         log.info("Схвалених дропшиперів у таблиці: %d", n)
+    n_alias, alias_err = await aliases.sync_from_sheet()
+    if alias_err:
+        log.warning("Власні назви не підтягнулись: %s", alias_err)
+    else:
+        log.info("Власних назв товарів: %d", n_alias)
     await storage.init_order_seq()
 
     # HTTP-сервер (health-check для хостингу + вебхук Weblium)

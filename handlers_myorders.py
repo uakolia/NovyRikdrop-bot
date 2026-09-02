@@ -3,6 +3,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
+import aliases
 import keyboards as kb
 import orders
 import sheets_store
@@ -18,10 +19,12 @@ STATUS_ICON = {
 }
 
 
-def _fmt(o: dict) -> str:
+def _fmt(o: dict, user_id: int | None = None) -> str:
     icon = STATUS_ICON.get(str(o.get("status", "")).strip(), "•")
+    name = aliases.name_by_article(user_id, o.get("article", ""),
+                                   o.get("product", ""))
     head = (f"{icon} <b>№{o.get('order_no', '?')}</b> · {o.get('created_at', '')}\n"
-            f"🌲 {o.get('product', '')} — {o.get('size', '')}")
+            f"🌲 {name} — {o.get('size', '')}")
     if str(o.get("qty", "1")) not in ("", "1"):
         head += f" × {o['qty']}"
     lines = [head,
@@ -63,7 +66,7 @@ async def cb_my_orders(cb: CallbackQuery):
             text += f"\n\n<i>⚠️ {err}</i>"
         await cb.message.edit_text(text, reply_markup=kb.main_menu())
         return
-    blocks = "\n\n".join(_fmt(o) for o in rows)
+    blocks = "\n\n".join(_fmt(o, cb.from_user.id) for o in rows)
     text = f"📋 <b>Мої замовлення</b> (останні {len(rows)})\n\n{blocks}"
     if err:
         text += ("\n\n<i>⚠️ Журнал у таблиці недоступний, показано локальні дані.\n"
@@ -78,7 +81,7 @@ async def cmd_my_orders(msg: Message):
     if not rows:
         await msg.answer("Поки що замовлень немає." + (f"\n{err}" if err else ""))
         return
-    blocks = "\n\n".join(_fmt(o) for o in rows)
+    blocks = "\n\n".join(_fmt(o, msg.from_user.id) for o in rows)
     await msg.answer(f"📋 <b>Мої замовлення</b>\n\n{blocks}"[:4000],
                      disable_web_page_preview=True)
 

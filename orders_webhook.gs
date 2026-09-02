@@ -15,6 +15,7 @@
 
 var ORDERS_SHEET = "Замовлення";
 var DROPS_SHEET = "Дропшипери";
+var ALIAS_SHEET = "Назви товарів";
 
 var ORDER_HEADERS = ["№", "Дата", "Джерело", "ID дропшипера", "Дропшипер",
   "Артикул", "Товар", "Розмір", "К-сть", "Дроп-ціна", "Оплата",
@@ -29,6 +30,10 @@ var ORDER_KEYS = ["order_no", "created_at", "source", "dropshipper_id", "dropshi
   "due_amount", "payment_proof"];
 
 var DROP_HEADERS = ["Telegram ID", "Ім'я", "Username", "Статус", "Дата", "Хто схвалив"];
+
+// Власні назви товарів: дропшипер бачить свою назву, у ТТН лишається наша.
+// Ключ — модель («Грандія», діє на всі розміри) або артикул («Cr6G-220»).
+var ALIAS_HEADERS = ["Telegram ID", "Артикул або модель", "Своя назва"];
 
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
@@ -74,6 +79,33 @@ function doPost(e) {
       sh.getRange(row, 1, 1, values.length).setValues([values]);
     } else {
       sh.appendRow(values);
+    }
+    return json_({ ok: true });
+  }
+
+  if (type === "alias") {
+    var ash = sheet_(ALIAS_SHEET, ALIAS_HEADERS);
+    var last = ash.getLastRow();
+    var found = -1;
+    if (last > 1) {
+      var vals = ash.getRange(2, 1, last - 1, 2).getValues();
+      for (var a = 0; a < vals.length; a++) {
+        if (String(vals[a][0]) === String(data.tg_id) &&
+            String(vals[a][1]).trim().toLowerCase() ===
+            String(data.key).trim().toLowerCase()) {
+          found = a + 2; break;
+        }
+      }
+    }
+    if (!data.name) {                       // порожня назва = прибрати
+      if (found > 0) ash.deleteRow(found);
+      return json_({ ok: true, removed: found > 0 });
+    }
+    var arow = [String(data.tg_id), data.key, data.name];
+    if (found > 0) {
+      ash.getRange(found, 1, 1, arow.length).setValues([arow]);
+    } else {
+      ash.appendRow(arow);
     }
     return json_({ ok: true });
   }
@@ -129,6 +161,21 @@ function doGet(e) {
     return json_({ rows: out });
   }
 
+  if (what === "aliases") {
+    var ash = sheet_(ALIAS_SHEET, ALIAS_HEADERS);
+    var lastA = ash.getLastRow();
+    var arows = [];
+    if (lastA > 1) {
+      var av = ash.getRange(2, 1, lastA - 1, 3).getValues();
+      for (var q = 0; q < av.length; q++) {
+        if (!av[q][0] || !av[q][1] || !av[q][2]) continue;
+        arows.push({ tg_id: String(av[q][0]), key: String(av[q][1]),
+                     name: String(av[q][2]) });
+      }
+    }
+    return json_({ rows: arows });
+  }
+
   if (what === "maxorder") {
     var s = sheet_(ORDERS_SHEET, ORDER_HEADERS);
     var n = s.getLastRow();
@@ -143,5 +190,5 @@ function doGet(e) {
     return json_({ max: max });
   }
 
-  return json_({ ok: true, hint: "what=dropshippers|orders|maxorder" });
+  return json_({ ok: true, hint: "what=dropshippers|orders|aliases|maxorder" });
 }
