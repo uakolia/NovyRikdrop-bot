@@ -19,12 +19,14 @@ var DROPS_SHEET = "Дропшипери";
 var ORDER_HEADERS = ["№", "Дата", "Джерело", "ID дропшипера", "Дропшипер",
   "Артикул", "Товар", "Розмір", "К-сть", "Дроп-ціна", "Оплата",
   "ПІБ отримувача", "Телефон", "Місто", "Відділення / адреса", "ТТН", "Статус",
-  "Коментар", "Ціна продажу", "Передплата", "При отриманні", "Доставка"];
+  "Коментар", "Ціна продажу", "Передплата", "При отриманні", "Доставка",
+  "На рахунок", "Чек"];
 
 var ORDER_KEYS = ["order_no", "created_at", "source", "dropshipper_id", "dropshipper",
   "article", "product", "size", "qty", "price_drop", "payment",
   "recipient_fio", "recipient_phone", "city", "warehouse", "ttn", "status",
-  "comment", "sale_price", "prepaid", "cod_amount", "delivery"];
+  "comment", "sale_price", "prepaid", "cod_amount", "delivery",
+  "due_amount", "payment_proof"];
 
 var DROP_HEADERS = ["Telegram ID", "Ім'я", "Username", "Статус", "Дата", "Хто схвалив"];
 

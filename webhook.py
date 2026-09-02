@@ -80,7 +80,7 @@ async def handle_weblium(request: web.Request):
                         recipient_city_ref=cities[0]["ref"],
                         recipient_warehouse_ref=match[0]["ref"],
                         fio=order["recipient_fio"], phone=order["recipient_phone"],
-                        description=f"Штучна ялинка {order['product']} {order['size']}",
+                        description=catalog.ttn_description(item),
                         cost=catalog.drop_price(item) * qty,
                         weight=(item["weight_kg"] or 5) * qty,
                         volume=(item.get("volume_m3") or 0) * qty or None,

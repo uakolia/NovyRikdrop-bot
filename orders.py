@@ -14,7 +14,7 @@ FIELDS = ["order_no", "created_at", "source", "dropshipper_id", "dropshipper",
           "article", "product", "size", "qty", "price_drop", "payment",
           "recipient_fio", "recipient_phone", "city", "warehouse",
           "ttn", "status", "comment", "sale_price", "prepaid", "cod_amount",
-          "delivery"]
+          "delivery", "due_amount", "payment_proof"]
 
 
 ORDERS_JSON = os.path.join(config.DATA_DIR, "orders.json")
@@ -107,6 +107,10 @@ def admin_text(order: dict) -> str:
     ]
     if order.get("ttn"):
         lines.append(f"📦 ТТН: <code>{order['ttn']}</code>")
+    if order.get("due_amount"):
+        pf = {"надіслано": "📸 чек надіслано", "очікується": "⏳ чек не надіслано"}
+        lines.append(f"🏦 На рахунок: <b>{order['due_amount']} грн</b> · "
+                     f"{pf.get(order.get('payment_proof'), '—')}")
     if order.get("comment"):
         lines.append(f"💬 {order['comment']}")
     return "\n".join(lines)

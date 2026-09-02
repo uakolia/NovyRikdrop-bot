@@ -7,7 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (CallbackQuery, InlineKeyboardButton,
                            InlineKeyboardMarkup, Message)
 
-import catalog, config, keyboards as kb, novaposhta as np, orders, storage
+import catalog, config, keyboards as kb, novaposhta as np, orders, payment, storage
 
 router = Router()
 
@@ -33,6 +33,7 @@ class Order(StatesGroup):
     building = State()
     flat = State()
     confirm = State()
+    payment_proof = State()
 
 
 # з якого кроку куди веде «⬅️ Назад»
@@ -43,7 +44,7 @@ PREV = {
     "phone": "mname", "city": "phone", "city_pick": "city",
     "delivery": "city_pick", "warehouse": "delivery", "street": "delivery",
     "street_pick": "street", "building": "street_pick", "flat": "building",
-    "confirm": "delivery",
+    "confirm": "delivery", "payment_proof": "confirm",
 }
 
 
@@ -272,6 +273,20 @@ async def show_confirm(target, state: FSMContext):
                 reply_markup=kb.confirm_kb())
 
 
+async def show_payment_proof(target, state: FSMContext):
+    data = await state.get_data()
+    item = catalog.by_article(data["article"])
+    qty = data.get("qty", 1)
+    due = payment.due_amount(int(catalog.drop_price(item) * qty),
+                             data.get("cod_amount"))
+    await state.update_data(due_amount=due)
+    await state.set_state(Order.payment_proof)
+    hint = f"{item['model_ua']} {catalog.size_label(item)}"
+    await _send(target, payment.details_text(due, hint),
+                reply_markup=_skip_back_kb("payment_proof", "proof:later",
+                                           "⏭ Надішлю чек пізніше"))
+
+
 SHOW = {
     "category": show_category, "model": show_model, "variant": show_variant,
     "qty": show_qty, "payment": show_payment, "sale_price": show_sale_price,
@@ -281,6 +296,7 @@ SHOW = {
     "warehouse": show_warehouse, "street": show_street,
     "street_pick": show_street_pick, "building": show_building,
     "flat": show_flat, "confirm": show_confirm,
+    "payment_proof": show_payment_proof,
 }
 
 
@@ -633,8 +649,44 @@ async def confirm_order(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     item = catalog.by_article(data["article"])
     qty = data.get("qty", 1)
+    due = payment.due_amount(int(catalog.drop_price(item) * qty),
+                             data.get("cod_amount"))
+    if due > 0:
+        # частина або вся сума йде вам на рахунок — просимо скрін чека
+        await show_payment_proof(cb, state)
+        await cb.answer()
+        return
+    await _finalize(cb, state, proof_file_id=None, create_ttn=True)
+    await cb.answer()
+
+
+@router.message(Order.payment_proof, F.photo | F.document)
+async def input_proof(msg: Message, state: FSMContext):
+    file_id = msg.photo[-1].file_id if msg.photo else msg.document.file_id
+    kind = "photo" if msg.photo else "document"
+    await _finalize(msg, state, proof_file_id=(kind, file_id), create_ttn=True)
+
+
+@router.message(Order.payment_proof, F.text)
+async def proof_wrong_type(msg: Message, state: FSMContext):
+    await msg.answer("📸 Надішліть, будь ласка, <b>скрін чека</b> — фото або файл. "
+                     "Якщо оплатите пізніше, натисніть «Надішлю чек пізніше».",
+                     reply_markup=_skip_back_kb("payment_proof", "proof:later",
+                                                "⏭ Надішлю чек пізніше"))
+
+
+@router.callback_query(F.data == "proof:later", Order.payment_proof)
+async def proof_later(cb: CallbackQuery, state: FSMContext):
+    await _finalize(cb, state, proof_file_id=None, create_ttn=False)
+    await cb.answer()
+
+
+async def _finalize(target, state: FSMContext, *, proof_file_id, create_ttn: bool):
+    data = await state.get_data()
+    item = catalog.by_article(data["article"])
+    qty = data.get("qty", 1)
     price = catalog.drop_price(item)
-    user = cb.from_user
+    user = target.from_user
     to_door = bool(data.get("to_door"))
     order = orders.new_order(
         order_no=storage.next_order_no(),
@@ -657,15 +709,23 @@ async def confirm_order(cb: CallbackQuery, state: FSMContext):
         warehouse=(_address_line(data).split(": ", 1)[-1] if to_door
                    else data["warehouse"]["name"]),
         delivery=("адресна доставка" if to_door else "відділення"),
+        due_amount=data.get("due_amount") or "",
+        payment_proof=("надіслано" if proof_file_id else
+                       ("очікується" if data.get("due_amount") else "не потрібен")),
     )
+    if not create_ttn:
+        order["status"] = "очікує оплати"
     await state.clear()
-    await cb.message.edit_text("⏳ Оформлюю замовлення…")
-    await cb.answer()
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text("⏳ Оформлюю замовлення…")
+        out = target.message
+    else:
+        out = await target.answer("⏳ Оформлюю замовлення…")
 
     ttn_note = ""
-    if config.NP_AUTO_TTN:
+    if config.NP_AUTO_TTN and create_ttn:
         try:
-            desc = f"Штучна ялинка {item['model_ua']} {catalog.size_label(item)}"
+            desc = catalog.ttn_description(item)
             res = await np.create_ttn(
                 recipient_city_ref=data["city"]["ref"],
                 recipient_warehouse_ref=(data.get("warehouse") or {}).get("ref", ""),
@@ -697,18 +757,36 @@ async def confirm_order(cb: CallbackQuery, state: FSMContext):
     if sheet_err:
         order["comment"] = (order.get("comment", "") + f" | Sheet: {sheet_err}").strip(" |")
 
+    bot = out.bot
     if config.ADMIN_CHAT_ID:
         try:
-            await cb.bot.send_message(config.ADMIN_CHAT_ID, orders.admin_text(order))
+            text = orders.admin_text(order)
+            if proof_file_id:
+                kind, fid = proof_file_id
+                if kind == "photo":
+                    await bot.send_photo(config.ADMIN_CHAT_ID, fid, caption=text)
+                else:
+                    await bot.send_document(config.ADMIN_CHAT_ID, fid, caption=text)
+            else:
+                await bot.send_message(config.ADMIN_CHAT_ID, text)
         except Exception:  # noqa: BLE001
             pass
 
-    await cb.message.edit_text(
+    if not create_ttn:
+        tail = ("\n\n💳 Замовлення збережено зі статусом <b>«очікує оплати»</b>. "
+                f"Переказ на {order['due_amount']} грн і скрін чека — "
+                "менеджеру в цей чат. ТТН створимо після оплати.")
+    elif proof_file_id:
+        tail = "\n\n📸 Чек передано менеджеру. Дякуємо! 🎄"
+    else:
+        tail = "\n\nДякуємо! 🎄"
+
+    await out.edit_text(
         f"✅ <b>Замовлення №{order['order_no']} прийнято!</b>\n\n"
         f"🌲 {order['product']} — {order['size']} × {qty}\n"
         f"👤 {order['recipient_fio']}\n"
         f"{_address_line(data)}\n"
         f"💳 {order['payment']}"
-        f"{ttn_note}\n\n"
-        "Дякуємо! 🎄",
+        f"{ttn_note}"
+        f"{tail}",
         reply_markup=kb.main_menu())

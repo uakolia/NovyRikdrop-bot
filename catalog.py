@@ -86,12 +86,23 @@ def drop_price(item) -> float:
 
 def size_label(item) -> str:
     if item.get("height_m") and item["height_m"] <= 10:
-        s = f"{item['height_m']:g} м"
-    elif item.get("size"):
-        s = str(item["size"])
-    else:
-        s = item["article"]
-    return s
+        return f"{item['height_m']:g} м"
+    size = str(item.get("size") or "").strip()
+    if size:
+        # «0,6» без одиниць — це метри (подарункові/настінні)
+        if re.fullmatch(r"\d+[.,]\d+", size):
+            return size.replace(",", ".") + " м"
+        return re.sub(r"\s*cm\b", " см", size).strip()
+    art = item["article"]
+    # вінки: «WR-Cl-Сr11-d Ø30» → «Ø30 см»
+    m = re.search(r"d\s*Ø\s*(\d+)", art)
+    if m:
+        return f"Ø{m.group(1)} см"
+    # гірлянди: «GR-Nb-Сr8-100» / «...-270Fr» → «100 см»
+    m = re.search(r"-(\d{2,3})(Fr)?$", art)
+    if m:
+        return f"{m.group(1)} см"
+    return art
 
 
 _SIZE_TAIL = re.compile(r"[-\s]*(?:d\s*Ø\s*)?\d+(?:/\d+)?[A-Za-zА-Яа-я]*$")
@@ -110,6 +121,21 @@ def model_label(model_ua: str) -> str:
     """Назва моделі з артикулом: 'Українська (Cr3)'."""
     pref = article_prefix(model_ua)
     return f"{model_ua} ({pref})" if pref else model_ua
+
+
+_TYPE_WORDS = ("віночок", "гірлянда", "ікебана", "настінна", "подарункова",
+               "підвісна", "ялинка")
+
+
+def ttn_description(item) -> str:
+    """Опис для ТТН: «Ялинка Грандія 2.2 м (Cr6G-220)»."""
+    name = item["model_ua"]
+    if not name.lower().startswith(_TYPE_WORDS):
+        name = f"Ялинка {name}"
+    size = size_label(item)
+    if size == item["article"]:
+        return f"{name} ({item['article']})"[:100]
+    return f"{name} {size} ({item['article']})"[:100]
 
 
 def find_variant_short(model_ua: str, idx: int):

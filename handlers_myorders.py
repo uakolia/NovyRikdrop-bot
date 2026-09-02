@@ -12,6 +12,7 @@ router = Router()
 
 STATUS_ICON = {
     "ТТН створено": "📦",
+    "очікує оплати": "💳",
     "ТТН НЕ створено": "⚠️",
     "нове": "🆕",
 }
@@ -30,6 +31,9 @@ def _fmt(o: dict) -> str:
     if o.get("cod_amount"):
         pay += f" · при отриманні {o['cod_amount']} грн"
     lines.append(pay)
+    if o.get("due_amount"):
+        mark = "✅" if o.get("payment_proof") == "надіслано" else "⏳"
+        lines.append(f"🏦 На рахунок: {o['due_amount']} грн {mark}")
     if o.get("ttn"):
         lines.append(f"📦 ТТН: <code>{o['ttn']}</code>\n"
                      f"🔗 https://novaposhta.ua/tracking/?cargo_number={o['ttn']}")
