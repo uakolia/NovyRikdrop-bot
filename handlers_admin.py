@@ -381,6 +381,44 @@ async def cmd_aliases(msg: Message):
                      + "\n\nДеталі: <code>/aliases ID</code>")
 
 
+GIDS_HELP = (
+    "🔢 <b>Вкладки прайсу</b>\n\n"
+    "Бот читає прайс по вкладках. Якщо якісь не підтягуються — задайте "
+    "їх номери вручну.\n\n"
+    "<b>Де взяти номер:</b> відкрийте потрібну вкладку прайсу — в адресі "
+    "браузера в кінці буде <code>#gid=123456</code>. Це і є номер.\n\n"
+    "<b>Задати:</b> <code>/gids 0 123456 789012</code> (через пробіл або кому)\n"
+    "<b>Скинути:</b> <code>/gids auto</code> — бот шукатиме сам\n"
+    "<b>Показати:</b> <code>/gids</code>"
+)
+
+
+@router.message(Command("gids"))
+async def cmd_gids(msg: Message):
+    if not _is_admin(msg.from_user.id):
+        return
+    import gids_store
+    parts = msg.text.split(maxsplit=1)
+    if len(parts) == 1:
+        cur = gids_store.get()
+        state = ("вручну: " + ", ".join(cur)) if cur else "автоматично"
+        await msg.answer(f"Зараз: <b>{state}</b>\n\n" + GIDS_HELP)
+        return
+    arg = parts[1].strip().lower()
+    if arg in ("auto", "авто", "скинути", "reset"):
+        gids_store.clear()
+        await msg.answer("✅ Скинуто — бот шукатиме вкладки сам. "
+                         "Тепер запустіть /reload")
+        return
+    nums = [x for x in re.split(r"[\s,;]+", arg) if x.isdigit()]
+    if not nums:
+        await msg.answer(GIDS_HELP)
+        return
+    gids_store.save(nums)
+    await msg.answer(f"✅ Збережено вкладок: {len(nums)}\n"
+                     + ", ".join(nums) + "\n\nТепер запустіть /reload")
+
+
 @router.message(Command("catalog"))
 async def cmd_catalog(msg: Message):
     if not _is_admin(msg.from_user.id):

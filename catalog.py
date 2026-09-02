@@ -171,34 +171,23 @@ def _html_rows(html: str):
             yield [""] + cells  # зсув на 1: парсер очікує технічну колонку зліва
 
 
-async def _fetch_bytes(session, url):
+MAX_DOWNLOAD = 25 * 1024 * 1024   # 25 МБ — більше в контейнер не тягнемо
+
+
+async def _fetch_bytes(session, url, max_bytes: int = MAX_DOWNLOAD):
+    """Завантажити з жорстким лімітом — інакше zip із фото з'їдає всю пам'ять."""
     async with session.get(url, timeout=aiohttp.ClientTimeout(total=180)) as r:
-        return r.status, (await r.read() if r.status == 200 else b"")
-
-
-async def _all_tabs_via_zip(session, sid):
-    """Усі вкладки одним архівом: export?format=zip → HTML на кожен аркуш."""
-    import io
-    import zipfile
-    status, blob = await _fetch_bytes(
-        session, SHEET_BASE.format(sid=sid) + "/export?format=zip")
-    if status != 200 or not blob:
-        return None, f"HTTP {status}"
-    try:
-        zf = zipfile.ZipFile(io.BytesIO(blob))
-    except zipfile.BadZipFile:
-        return None, "Google віддав не архів"
-    tabs = []
-    for name in zf.namelist():
-        if not name.lower().endswith((".html", ".htm")):
-            continue
-        try:
-            html = zf.read(name).decode("utf-8", "replace")
-        except Exception:  # noqa: BLE001
-            continue
-        items = parse_rows(_html_rows(html))
-        tabs.append((name.rsplit("/", 1)[-1].rsplit(".", 1)[0], items))
-    return tabs, None
+        if r.status != 200:
+            return r.status, b""
+        size = r.headers.get("Content-Length")
+        if size and size.isdigit() and int(size) > max_bytes:
+            return 0, b""                      # завеликий — навіть не читаємо
+        buf = bytearray()
+        async for chunk in r.content.iter_chunked(64 * 1024):
+            buf.extend(chunk)
+            if len(buf) > max_bytes:
+                return 0, b""                  # обриваємо на льоту
+        return 200, bytes(buf)
 
 
 async def _fetch(session, url):
@@ -206,50 +195,52 @@ async def _fetch(session, url):
         return r.status, (await r.text() if r.status == 200 else "")
 
 
+_GID_PATTERNS = (
+    r'sheet-button-(\d{1,12})',          # htmlview: кнопки вкладок
+    r'[\'"]gid[\'"]\s*:\s*[\'"]?(\d{1,12})',
+    r'[?&#]gid=(\d{1,12})',
+)
+
+
 async def _discover_gids(session, sid):
-    """Знайти всі вкладки таблиці (прайс складається з кількох аркушів)."""
-    status, html = await _fetch(session, SHEET_BASE.format(sid=sid) + "/edit")
-    if status != 200:
-        return []
+    """Знайти номери всіх вкладок таблиці."""
+    base = SHEET_BASE.format(sid=sid)
     gids, seen = [], set()
-    for m in re.finditer(r'[\'"]?gid[\'"]?[:=]\s*[\'"]?(\d{1,12})', html):
-        g = m.group(1)
-        if g not in seen:
-            seen.add(g)
-            gids.append(g)
-    return gids[:30]
+    for url in (base + "/htmlview", base + "/edit"):
+        status, blob = await _fetch_bytes(session, url, max_bytes=8 * 1024 * 1024)
+        if status != 200 or not blob:
+            continue
+        html = blob.decode("utf-8", "replace")
+        for pat in _GID_PATTERNS:
+            for m in re.finditer(pat, html):
+                g = m.group(1)
+                if g not in seen:
+                    seen.add(g)
+                    gids.append(g)
+        if len(gids) > 1:      # знайшли кілька вкладок — цього достатньо
+            break
+    return gids[:40]
 
 
 async def reload_from_google():
     """Перечитати прайс із Google Таблиці — всі вкладки. Повертає (к-сть, помилка).
 
-    Основний шлях — export?format=zip: один архів із HTML кожної вкладки.
-    Резерв — CSV по кожному gid (gid'и з PRICELIST_GIDS або зі сторінки таблиці).
+    Читаємо CSV-експорт кожної вкладки: лише текст, без фото — тому швидко
+    й без навантаження на пам'ять. Номери вкладок беремо з налаштувань
+    (/gids) або шукаємо на сторінці таблиці.
     """
     sid = config.PRICELIST_SHEET_ID
     export = SHEET_BASE.format(sid=sid) + "/export?format=csv"
     try:
         async with aiohttp.ClientSession() as s:
-            # --- спроба 1: усі вкладки одним архівом
-            tabs, zip_err = await _all_tabs_via_zip(s, sid)
-            if tabs:
-                merged, report = {}, []
-                for name, items in tabs:
-                    if items:
-                        report.append(f"{name}: {len(items)}")
-                        for it in items:
-                            merged.setdefault(it["article"], it)
-                if merged:
-                    saved = _commit(merged, len(tabs))
-                    if saved[1] is None:
-                        _last_report[:] = report
-                    return saved
+            # --- спроба 1: CSV по кожній вкладці (мало пам'яті, надійно)
+            import gids_store
+            gids = (gids_store.get() or config.PRICELIST_GIDS
+                    or await _discover_gids(s, sid))
 
-            gids = config.PRICELIST_GIDS or await _discover_gids(s, sid)
-
-            merged, ok_tabs, last_status = {}, 0, None
+            merged, ok_tabs, last_status, report = {}, 0, None, []
             urls = [f"{export}&gid={g}" for g in gids] or [export]
-            for url in urls:
+            for gid, url in zip(gids or ["перша"], urls):
                 status, text = await _fetch(s, url)
                 last_status = status
                 if status != 200:
@@ -257,11 +248,11 @@ async def reload_from_google():
                 items = parse_csv_text(text)
                 if items:
                     ok_tabs += 1
+                    report.append(f"gid {gid}: {len(items)}")
                     for it in items:
                         merged.setdefault(it["article"], it)
 
-            if not merged and not gids:
-                # жодної вкладки не знайшли — остання спроба: перша вкладка
+            if not merged:
                 status, text = await _fetch(s, export)
                 last_status = status
                 if status == 200:
@@ -274,7 +265,10 @@ async def reload_from_google():
                            "«Усі, хто має посилання — Переглядач»")
             return 0, f"не вдалося прочитати таблицю (HTTP {last_status})"
 
-        return _commit(merged, ok_tabs)
+        saved = _commit(merged, ok_tabs)
+        if saved[1] is None:
+            _last_report[:] = report
+        return saved
     except Exception as e:  # noqa: BLE001
         return 0, str(e)
 
