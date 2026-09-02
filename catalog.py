@@ -243,12 +243,14 @@ async def reload_from_google():
             for gid, url in zip(gids or ["перша"], urls):
                 status, text = await _fetch(s, url)
                 last_status = status
+                name = config.TAB_NAMES.get(str(gid), f"gid {gid}")
                 if status != 200:
+                    report.append(f"{name}: ⚠️ HTTP {status}")
                     continue
                 items = parse_csv_text(text)
+                report.append(f"{name}: {len(items)}")
                 if items:
                     ok_tabs += 1
-                    report.append(f"gid {gid}: {len(items)}")
                     for it in items:
                         merged.setdefault(it["article"], it)
 

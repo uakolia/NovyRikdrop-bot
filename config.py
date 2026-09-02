@@ -38,8 +38,24 @@ SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
 
 # Google Sheet прайс-лист (для /reload)
 PRICELIST_SHEET_ID = os.getenv("PRICELIST_SHEET_ID", "18OkfzTnujb_VFTX0UuDlkEwCBNiR1pFy5OeafHugYFg")
-# номери вкладок через кому (беруться з URL: #gid=...). Порожньо = бот знайде сам
-PRICELIST_GIDS = [g.strip() for g in os.getenv("PRICELIST_GIDS", "").replace(";", ",").split(",") if g.strip().isdigit()]
+# вкладки прайсу: (gid, назва). Номер видно в URL таблиці: #gid=...
+# Змінити можна командою /gids у боті або змінною PRICELIST_GIDS.
+PRICELIST_TABS = [
+    ("878017772", "PE Umbrella System"),
+    ("1028706328", "NEW 2026 PE Umbrella System"),
+    ("1450227207", "Christmas tree in a pot"),
+    ("2086408970", "Wreaths"),
+    ("1211818706", "Garlands"),
+    ("33952076", "Ikebana"),
+    ("498807060", "New Fly Tree"),
+    ("525872130", "NEW Wall Tree"),
+    ("1680206781", "Mini Tree"),
+]
+
+_env_gids = [g.strip() for g in os.getenv("PRICELIST_GIDS", "").replace(";", ",").split(",")
+             if g.strip().isdigit()]
+PRICELIST_GIDS = _env_gids or [g for g, _ in PRICELIST_TABS]
+TAB_NAMES = {g: n for g, n in PRICELIST_TABS}
 
 # Вебхук для замовлень із сайту (Weblium через Zapier/Make тощо)
 WEBLIUM_SECRET = os.getenv("WEBLIUM_SECRET", "")
