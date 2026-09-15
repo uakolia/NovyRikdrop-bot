@@ -1,6 +1,8 @@
 """Google Таблиця як постійне сховище (файли в контейнері зникають при деплої).
 
-Працює через той самий Apps Script вебхук (SHEET_WEBHOOK_URL):
+Працює через той самий Apps Script вебхук (SHEET_WEBHOOK_URL).
+Кожен запит несе SHEETS_API_SECRET (POST — у тілі, GET — параметром secret),
+бо Apps Script не бачить HTTP-заголовків:
   POST {type: "order", ...}        — додати замовлення
   POST {type: "dropshipper", ...}  — додати/оновити дропшипера
   GET  ?what=dropshippers          — список схвалених
@@ -10,6 +12,7 @@
   POST {type: "alias", ...}        — додати/оновити власну назву
 """
 import json
+import re
 
 import aiohttp
 
@@ -21,13 +24,37 @@ NEED_UPDATE = ("скрипт таблиці старої версії. Apps Scri
 TIMEOUT = aiohttp.ClientTimeout(total=30)
 
 
+UNAUTHORIZED = ("таблиця відхилила запит: SHEETS_API_SECRET не збігається з "
+                "Властивостями скрипту (або не заданий там)")
+
+
 def enabled() -> bool:
     return bool(config.SHEET_WEBHOOK_URL)
 
 
+def _scrub(text: str) -> str:
+    """Прибрати секрет із тексту помилки: aiohttp (напр. TooManyRedirects) кладе
+    в повідомлення повний URL разом із ?secret=..., а помилки бачать люди."""
+    # параметр ховаємо цілком: yarl кодує секрет по-своєму, рядком не впіймати
+    text = re.sub(r"([?&]secret=)[^&#\s'\"]*", r"\1***", text)
+    if config.SHEETS_API_SECRET:
+        text = text.replace(config.SHEETS_API_SECRET, "***")
+    return text
+
+
+def _not_ready():
+    if not config.SHEET_WEBHOOK_URL:
+        return "вебхук таблиці не налаштований (SHEET_WEBHOOK_URL)"
+    if not config.SHEETS_API_SECRET:
+        return "не задано SHEETS_API_SECRET — таблиця без нього не відповідає"
+    return None
+
+
 async def _post(payload: dict):
-    if not enabled():
-        return None, "вебхук таблиці не налаштований (SHEET_WEBHOOK_URL)"
+    err = _not_ready()
+    if err:
+        return None, err
+    payload = {**payload, "secret": config.SHEETS_API_SECRET}
     try:
         async with aiohttp.ClientSession() as s:
             async with s.post(config.SHEET_WEBHOOK_URL, json=payload,
@@ -36,7 +63,7 @@ async def _post(payload: dict):
                     return None, f"HTTP {r.status}"
                 return _parse(await r.text())
     except Exception as e:  # noqa: BLE001
-        return None, str(e)
+        return None, _scrub(str(e))
 
 
 def _hint(text: str) -> str:
@@ -56,14 +83,19 @@ def _hint(text: str) -> str:
 def _parse(text: str):
     """Apps Script без doGet (або з помилкою) віддає HTML замість JSON."""
     try:
-        return json.loads(text), None
+        data = json.loads(text)
     except ValueError:
         return None, f"{NEED_UPDATE}\n\n🔎 {_hint(text)}"
+    if isinstance(data, dict) and data.get("error") == "unauthorized":
+        return None, UNAUTHORIZED
+    return data, None
 
 
 async def _get(params: dict):
-    if not enabled():
-        return None, "вебхук таблиці не налаштований (SHEET_WEBHOOK_URL)"
+    err = _not_ready()
+    if err:
+        return None, err
+    params = {**params, "secret": config.SHEETS_API_SECRET}
     try:
         async with aiohttp.ClientSession() as s:
             async with s.get(config.SHEET_WEBHOOK_URL, params=params,
@@ -72,12 +104,16 @@ async def _get(params: dict):
                     return None, f"HTTP {r.status}"
                 return _parse(await r.text())
     except Exception as e:  # noqa: BLE001
-        return None, str(e)
+        return None, _scrub(str(e))
 
 
 async def push_order(order: dict):
     data, err = await _post({"type": "order", **order})
-    return err
+    if err:
+        return err
+    if not (isinstance(data, dict) and data.get("ok")):
+        return f"таблиця не підтвердила запис: {_scrub(str(data))[:200]}"
+    return None
 
 
 async def push_dropshipper(user_id: int, name: str, username: str,

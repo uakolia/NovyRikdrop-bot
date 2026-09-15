@@ -35,6 +35,8 @@ PRICE_TIER = os.getenv("PRICE_TIER", "drop3")
 
 # Google Apps Script вебхук для запису замовлень у таблицю
 SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
+# спільний секрет із Властивостями Apps Script (без нього скрипт відхиляє запити)
+SHEETS_API_SECRET = os.getenv("SHEETS_API_SECRET", "")
 
 # Google Sheet прайс-лист (для /reload)
 PRICELIST_SHEET_ID = os.getenv("PRICELIST_SHEET_ID", "18OkfzTnujb_VFTX0UuDlkEwCBNiR1pFy5OeafHugYFg")

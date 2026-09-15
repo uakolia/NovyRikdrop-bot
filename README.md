@@ -5,11 +5,11 @@
 ## Запуск
 1. Створіть бота у @BotFather, збережіть токен
 2. `python setup_np.py ВАШ_КЛЮЧ_НП "Ваше місто"` — видасть 6 рядків для змінних
-3. Google Таблиця замовлень: Розширення → Apps Script → вставте `orders_webhook.gs` → Деплой як веб-додаток (доступ: усі) → URL = SHEET_WEBHOOK_URL
+3. Google Таблиця замовлень: Розширення → Apps Script → вставте `orders_webhook.gs` → Деплой як веб-додаток (доступ: усі) → URL = SHEET_WEBHOOK_URL; у Налаштуваннях проєкту → Властивості скрипту додайте SHEETS_API_SECRET (довгий випадковий рядок)
 4. Railway: Deploy from GitHub repo → Variables:
    - BOT_TOKEN, ADMIN_IDS
    - NP_API_KEY, NP_SENDER_REF, NP_SENDER_CONTACT_REF, NP_SENDER_CITY_REF, NP_SENDER_WAREHOUSE_REF, NP_SENDER_PHONE
-   - SHEET_WEBHOOK_URL
+   - SHEET_WEBHOOK_URL, SHEETS_API_SECRET (те саме значення, що у Властивостях скрипту)
    - опційно: PRICE_TIER (drop1/drop2/drop3), NP_PAYER_TYPE (Recipient/Sender), ADMIN_CHAT_ID, WEBLIUM_SECRET
 
 ## Команди адміна

@@ -94,7 +94,9 @@ async def handle_weblium(request: web.Request):
 
     orders.save_csv(order)
     orders.save_local(order)
-    await orders.send_to_sheet(order)
+    sheet_err = await orders.send_to_sheet(order)
+    if sheet_err:
+        order["comment"] = (order.get("comment", "") + f" | Sheet: {sheet_err}").strip(" |")
     bot = request.app["bot"]
     if config.ADMIN_CHAT_ID:
         try:

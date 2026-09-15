@@ -10,7 +10,13 @@
  *  1. Відкрийте таблицю замовлень → Розширення → Apps Script
  *  2. Замініть увесь код на цей, збережіть (💾)
  *  3. Деплой → Керувати розгортаннями → олівець ✏️ → Версія: Нова версія → Розгорнути
- *     (URL залишиться тим самим, у Railway нічого міняти не треба)
+ *     (URL залишиться тим самим)
+ *
+ * СЕКРЕТ (обов'язково, інакше скрипт відхиляє всі запити):
+ *  1. Придумайте довгий випадковий рядок (напр. `python -c "import secrets; print(secrets.token_urlsafe(32))"`)
+ *  2. Apps Script → ⚙️ Налаштування проєкту → Властивості скрипту → Додати:
+ *     SHEETS_API_SECRET = цей рядок
+ *  3. У Railway → Variables додайте SHEETS_API_SECRET з тим самим значенням
  */
 
 var ORDERS_SHEET = "Замовлення";
@@ -40,6 +46,22 @@ function json_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+// Секрет зберігається у Властивостях скрипту, а не в коді.
+// Порівняння за сталий час, щоб не підбирали секрет по символу.
+function authorized_(given) {
+  var secret = PropertiesService.getScriptProperties().getProperty("SHEETS_API_SECRET");
+  if (!secret || typeof given !== "string" || given.length !== secret.length) return false;
+  var diff = 0;
+  for (var i = 0; i < secret.length; i++) {
+    diff |= secret.charCodeAt(i) ^ given.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+function unauthorized_() {
+  return json_({ ok: false, error: "unauthorized" });
+}
+
 function sheet_(name, headers) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
@@ -63,7 +85,14 @@ function sheet_(name, headers) {
 }
 
 function doPost(e) {
-  var data = JSON.parse(e.postData.contents);
+  var data;
+  try {
+    data = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return unauthorized_();
+  }
+  if (!data || !authorized_(data.secret)) return unauthorized_();
+  delete data.secret;
   var type = data.type || "order";
 
   if (type === "dropshipper") {
@@ -119,6 +148,7 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  if (!authorized_(e && e.parameter && e.parameter.secret)) return unauthorized_();
   var what = (e && e.parameter && e.parameter.what) || "";
 
   if (what === "dropshippers") {

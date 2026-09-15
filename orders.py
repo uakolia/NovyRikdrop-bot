@@ -4,9 +4,8 @@ import datetime as dt
 import json
 import os
 
-import aiohttp
-
 import config
+import sheets_store
 
 ORDERS_CSV = os.path.join(config.DATA_DIR, "orders.csv")
 
@@ -60,19 +59,13 @@ def save_csv(order: dict):
 
 
 async def send_to_sheet(order: dict) -> str | None:
-    """POST у Google Apps Script вебхук. Повертає текст помилки або None."""
+    """Записати замовлення в Google Таблицю. Повертає текст помилки або None.
+
+    Йде через sheets_store: там секрет і перевірка відповіді {"ok": false}
+    (Apps Script відхиляє запит з HTTP 200, тож статус нічого не каже)."""
     if not config.SHEET_WEBHOOK_URL:
         return None
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.post(config.SHEET_WEBHOOK_URL, json=order,
-                              timeout=aiohttp.ClientTimeout(total=30),
-                              allow_redirects=True) as r:
-                if r.status >= 400:
-                    return f"HTTP {r.status}"
-        return None
-    except Exception as e:  # noqa: BLE001
-        return str(e)
+    return await sheets_store.push_order(order)
 
 
 def new_order(**kw) -> dict:
