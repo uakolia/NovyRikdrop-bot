@@ -326,6 +326,27 @@ function stockOp_(type, data) {
 }
 
 /**
+ * Перевірка часових поясів (запустити вручну в редакторі Apps Script).
+ * Пояс скрипта, пояс таблиці й пояс бота мають збігатися — інакше «вік
+ * замовлення» рахується неправильно.
+ */
+function checkTimezones() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var now = new Date();
+  var msg = [
+    "пояс скрипта:  " + Session.getScriptTimeZone(),
+    "пояс таблиці:  " + ss.getSpreadsheetTimeZone(),
+    "зараз у скрипті: " + Utilities.formatDate(now, Session.getScriptTimeZone(),
+                                               "yyyy-MM-dd'T'HH:mm:ssXXX"),
+    "зараз за UTC:    " + Utilities.formatDate(now, "UTC",
+                                               "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+    "у боті має бути TZ=" + Session.getScriptTimeZone()
+  ].join("\n");
+  Logger.log(msg);
+  return msg;
+}
+
+/**
  * Разова перевірка (запустити вручну в редакторі Apps Script): чи в колонці I
  * справді формула =F-G-H. Бот її не пише, але заповнити руками числом легко.
  */
@@ -513,8 +534,9 @@ function doGet(e) {
         trows.push({
           order_no: tv[t][orderCol_("order_no") - 1],
           created_at: (made instanceof Date)
+            // зі зсувом (+03:00), щоб бот не мусив здогадуватися про пояс
             ? Utilities.formatDate(made, Session.getScriptTimeZone(),
-                                   "yyyy-MM-dd HH:mm:ss")
+                                   "yyyy-MM-dd'T'HH:mm:ssXXX")
             : trim_(made),
           ttn: ttn,
           tg_id: trim_(tv[t][orderCol_("dropshipper_id") - 1]),

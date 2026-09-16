@@ -1,5 +1,4 @@
 """Клієнт API Нової Пошти: міста, вантажні відділення, створення ТТН."""
-import datetime as dt
 import re
 
 import aiohttp
@@ -189,7 +188,9 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
     props = {
         "PayerType": config.NP_PAYER_TYPE,
         "PaymentMethod": "Cash",
-        "DateTime": dt.datetime.now().strftime("%d.%m.%Y"),
+        # дата відправлення — у поясі таблиці: під UTC контейнер після
+        # опівночі поставив би вчорашню дату, і НП таку ТТН не прийняла б
+        "DateTime": config.now().strftime("%d.%m.%Y"),
         "CargoType": "Cargo",
         "Weight": str(round(max(weight, 0.5), 1)),
         "SeatsAmount": str(seats),

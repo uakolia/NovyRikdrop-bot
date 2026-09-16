@@ -72,7 +72,8 @@ async def send_to_sheet(order: dict) -> str | None:
 
 def new_order(**kw) -> dict:
     order = {k: "" for k in FIELDS}
-    order["created_at"] = dt.datetime.now().strftime("%d.%m.%Y %H:%M")
+    # час у зоні таблиці, а не в тій, що трапилась контейнеру
+    order["created_at"] = config.now().strftime("%d.%m.%Y %H:%M")
     order["status"] = "нове"
     order["qty"] = 1
     order.update(kw)

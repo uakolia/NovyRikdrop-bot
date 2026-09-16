@@ -1,3 +1,5 @@
 aiogram>=3.13,<4
 aiohttp>=3.9
 python-dotenv>=1.0
+# бази часових поясів немає у python:*-slim — без неї Europe/Kyiv не знайдеться
+tzdata>=2024.1

@@ -71,14 +71,41 @@ def category(code: str) -> str:
     return "transit"
 
 
-# Таблиця може віддати дату двома шляхами: якщо Google перетворив рядок бота
-# на справжню дату — прийде «2026-09-16 00:53:00» (час у поясі таблиці), якщо
-# ні — рядок як його записав бот, «16.09.2026 0:53». Приймаємо обидва.
+# Скрипт віддає дату зі зсувом («2026-09-16T00:53:00+03:00»), якщо в комірці
+# справжня дата. Якщо ж там лишився рядок бота («16.09.2026 0:53»), зсуву немає
+# — такий час вважаємо часом у зоні таблиці (config.TIMEZONE), а не часом
+# контейнера: TZ на хостингу може зникнути при перезбірці, і тоді порівняння
+# тихо поїхало б на 2-3 години.
 _DATE_FORMATS = (
+    "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d %H:%M:%S%z",
     "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d",
     "%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y",
     "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S",
 )
+
+
+def parse_created(created_at) -> "dt.datetime | None":
+    """Дата створення як datetime із зоною. None — не розпізнали."""
+    s = str(created_at or "").strip()
+    if not s:
+        return None
+    # «...Z» strptime із %z не бере, а ISO-розбір бере
+    try:
+        parsed = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = None
+    if parsed is None:
+        for fmt in _DATE_FORMATS:
+            try:
+                parsed = dt.datetime.strptime(s, fmt)
+                break
+            except ValueError:
+                continue
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:                      # час без зсуву — зона таблиці
+        parsed = parsed.replace(tzinfo=config.tz())
+    return parsed
 
 
 def order_age(created_at) -> "dt.timedelta | None":
@@ -92,15 +119,12 @@ def order_age(created_at) -> "dt.timedelta | None":
         log.warning("Замовлення без дати створення — вік не порахувати, "
                     "правило «номер не знайдено» для нього не спрацює")
         return None
-    for fmt in _DATE_FORMATS:
-        try:
-            return dt.datetime.now() - dt.datetime.strptime(s, fmt)
-        except ValueError:
-            continue
-    log.warning("Дата замовлення %r не підходить під жоден відомий формат "
-                "(%s) — резерв за кодом 3 не знімаємо, потрібна увага",
-                s, ", ".join(_DATE_FORMATS[:3]) + ", …")
-    return None
+    parsed = parse_created(s)
+    if parsed is None:
+        log.warning("Дата замовлення %r не підходить під жоден відомий формат "
+                    "— резерв за кодом 3 не знімаємо, потрібна увага", s)
+        return None
+    return config.now() - parsed
 
 
 def category_of_text(status: str) -> str:

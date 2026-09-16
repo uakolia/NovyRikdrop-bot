@@ -1,5 +1,4 @@
 """Звернення дропшиперів: «Повідомити про проблему» + відповідь адміна."""
-import datetime as dt
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -51,7 +50,7 @@ async def support_text(msg: Message, state: FSMContext):
     uname = f"@{user.username}" if user.username else user.full_name
     header = (f"🆘 <b>Звернення від дропшипера</b>\n"
               f"{uname} (id <code>{user.id}</code>)\n"
-              f"🕒 {dt.datetime.now().strftime('%d.%m.%Y %H:%M')}\n")
+              f"🕒 {config.now().strftime('%d.%m.%Y %H:%M')}\n")
     body = msg.text or msg.caption or "(без тексту)"
     reply_kb = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="✍️ Відповісти",

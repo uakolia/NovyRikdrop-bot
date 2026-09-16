@@ -5,6 +5,34 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# Часовий пояс, у якому живуть дати в таблиці. Береться з TZ (Railway), але
+# навіть якщо змінна зникне при перезбірці контейнера, лишиться Europe/Kyiv:
+# мовчазний відкат на UTC зсунув би вік замовлень на 2-3 години.
+TIMEZONE = os.getenv("TZ") or "Europe/Kyiv"
+
+
+def tz():
+    """ZoneInfo для TIMEZONE; якщо зони немає в системі — UTC і гучний лог."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    for name in (TIMEZONE, "Europe/Kyiv", "Europe/Kiev"):
+        try:
+            return ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError, KeyError):
+            continue
+    import datetime as _dt
+    import logging
+    logging.getLogger(__name__).warning(
+        "Часовий пояс %r не знайдено — рахуємо час за UTC. Перевірте TZ і "
+        "пакет tzdata", TIMEZONE)
+    return _dt.timezone.utc
+
+
+def now():
+    """Поточний час у часовому поясі таблиці (завжди з зоною)."""
+    import datetime as _dt
+    return _dt.datetime.now(tz())
+
+
 def _ids(s):
     return [int(x) for x in (s or "").replace(";", ",").split(",") if x.strip().isdigit()]
 
