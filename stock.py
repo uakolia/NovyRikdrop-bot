@@ -23,17 +23,71 @@ log = logging.getLogger(__name__)
 # {user_id_str: {канонічний_артикул: рядок}}
 _cache: dict[str, dict[str, dict]] = {}
 
+# кого треба перечитати при наступному асинхронному зверненні
+_stale: set[str] = set()
+
 
 def _key(user_id) -> str:
     return str(user_id)
 
 
 def invalidate(user_id=None):
-    """Скинути кеш: після кожного запису, бо залишок міг змінитися."""
+    """Позначити, що числа застаріли — але НЕ викидати рядки.
+
+    У кеші лежать не лише кількості, а й «Персональна назва». Якщо стерти
+    рядок цілком, синхронні місця (підписи кнопок, підсумкове повідомлення)
+    втрачають назву дропшипера й показують заводську, доки хтось не перечитає
+    таблицю. Тому дані лишаємо, а позначку «застаріло» знімає найближчий
+    rows_for(), який сходить у таблицю.
+    """
+    if user_id is None:
+        _stale.update(_cache.keys())
+    else:
+        _stale.add(_key(user_id))
+
+
+def forget(user_id=None):
+    """Викинути рядки зовсім (потрібно хіба що в тестах)."""
     if user_id is None:
         _cache.clear()
+        _stale.clear()
     else:
         _cache.pop(_key(user_id), None)
+        _stale.discard(_key(user_id))
+
+
+def apply_write(user_id, data):
+    """Оновити кеш відповіддю скрипта після reserve/receive/release.
+
+    Скрипт повертає нові «Зарезервовано» й «Доступно», тож ходити за ними в
+    таблицю ще раз не треба: підставляємо числа в кеш і лишаємо назви на місці.
+    Якщо у відповіді чогось немає — позначаємо застарілим, хай перечитає.
+    """
+    uid = _key(user_id)
+    rows = (_cache.get(uid) or {})
+    if not rows or not isinstance(data, dict):
+        invalidate(user_id)
+        return
+    items = data.get("items")
+    if items is None and data.get("article"):
+        items = [data]                      # відповідь одиночної операції
+    if not items:
+        invalidate(user_id)
+        return
+    touched = 0
+    for it in items:
+        row = rows.get(article_key.canon(it.get("article")))
+        if row is None:
+            continue
+        if it.get("available") is not None:
+            row["available"] = it["available"]
+        if it.get("reserved") is not None:
+            row["reserved"] = it["reserved"]
+        if it.get("delivered") is not None:
+            row["delivered"] = it["delivered"]
+        touched += 1
+    if touched != len(items):
+        invalidate(user_id)
 
 
 async def refresh():
@@ -52,6 +106,7 @@ async def refresh():
             fresh.setdefault(uid, {})[article_key.canon(art)] = r
     _cache.clear()
     _cache.update(fresh)
+    _stale.clear()
     return len(rows), None
 
 
@@ -63,11 +118,11 @@ def all_rows() -> list:
 async def rows_for(user_id) -> dict:
     """{канонічний_артикул: рядок} цього дропшипера (з кешу або з таблиці)."""
     uid = _key(user_id)
-    if uid not in _cache:
+    if uid not in _cache or uid in _stale:
         _, err = await refresh()
         if err:
             log.warning("Залишки не прочитались: %s", err)
-            return {}
+            return _cache.get(uid) or {}     # краще застарілі числа, ніж нічого
     return _cache.get(uid) or {}
 
 
@@ -120,9 +175,12 @@ async def _op(op: str, user_id, article: str, qty: int):
     if not sheets_store.enabled():
         return None, "таблиця не налаштована"
     data, err = await sheets_store.stock_op(op, user_id, article, qty)
-    # кеш скидаємо у будь-якому разі: після відмови «не вистачає» наші числа
-    # однаково застарілі — хтось інший встиг зарезервувати
-    invalidate(user_id)
+    if err:
+        # навіть відмова «не вистачає» означає, що наші числа застарілі:
+        # хтось інший устиг зарезервувати
+        invalidate(user_id)
+    else:
+        apply_write(user_id, data)
     return data, err
 
 
@@ -131,7 +189,10 @@ async def _op_many(op: str, user_id, items: list[dict]):
     if not sheets_store.enabled():
         return None, "таблиця не налаштована"
     data, err = await sheets_store.stock_op_many(op, user_id, items)
-    invalidate(user_id)
+    if err:
+        invalidate(user_id)
+    else:
+        apply_write(user_id, data)
     return data, err
 
 
