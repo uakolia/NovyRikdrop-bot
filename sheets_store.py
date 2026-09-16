@@ -21,6 +21,7 @@ import re
 import aiohttp
 
 import config
+import http_client
 import perf
 
 NEED_UPDATE = ("скрипт таблиці старої версії. Apps Script → вставте новий код → "
@@ -62,12 +63,12 @@ async def _post(payload: dict):
     payload = {**payload, "secret": config.SHEETS_API_SECRET}
     try:
         async with perf.timed(f"таблиця POST {payload.get('type', '?')}"):
-            async with aiohttp.ClientSession() as s:
-                async with s.post(config.SHEET_WEBHOOK_URL, json=payload,
-                                  timeout=TIMEOUT, allow_redirects=True) as r:
-                    if r.status >= 400:
-                        return None, f"HTTP {r.status}"
-                    return _parse(await r.text())
+            s = http_client.session()
+            async with s.post(config.SHEET_WEBHOOK_URL, json=payload,
+                              timeout=TIMEOUT, allow_redirects=True) as r:
+                if r.status >= 400:
+                    return None, f"HTTP {r.status}"
+                return _parse(await r.text())
     except Exception as e:  # noqa: BLE001
         return None, _scrub(str(e))
 
@@ -104,12 +105,12 @@ async def _get(params: dict):
     params = {**params, "secret": config.SHEETS_API_SECRET}
     try:
         async with perf.timed(f"таблиця GET {params.get('what', '?')}"):
-            async with aiohttp.ClientSession() as s:
-                async with s.get(config.SHEET_WEBHOOK_URL, params=params,
-                                 timeout=TIMEOUT, allow_redirects=True) as r:
-                    if r.status >= 400:
-                        return None, f"HTTP {r.status}"
-                    return _parse(await r.text())
+            s = http_client.session()
+            async with s.get(config.SHEET_WEBHOOK_URL, params=params,
+                             timeout=TIMEOUT, allow_redirects=True) as r:
+                if r.status >= 400:
+                    return None, f"HTTP {r.status}"
+                return _parse(await r.text())
     except Exception as e:  # noqa: BLE001
         return None, _scrub(str(e))
 

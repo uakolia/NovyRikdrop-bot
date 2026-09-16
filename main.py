@@ -11,6 +11,7 @@ import access
 import aliases
 import article_key
 import catalog, config
+import http_client
 import np_tracking
 import stock
 import storage
@@ -101,6 +102,7 @@ async def main():
     finally:
         poller.cancel()
         await runner.cleanup()
+        await http_client.close()      # одна спільна сесія на весь бот
 
 
 if __name__ == "__main__":

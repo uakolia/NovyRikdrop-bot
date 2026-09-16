@@ -4,6 +4,7 @@ import re
 import aiohttp
 
 import config
+import http_client
 import perf
 
 API_URL = "https://api.novaposhta.ua/v2.0/json/"
@@ -29,10 +30,10 @@ async def _call(model, method, props, api_key: str | None = None):
         "methodProperties": props,
     }
     async with perf.timed(f"НП {model}.{method}"):
-        async with aiohttp.ClientSession() as s:
-            async with s.post(API_URL, json=payload,
-                              timeout=aiohttp.ClientTimeout(total=30)) as r:
-                data = await r.json(content_type=None)
+        s = http_client.session()
+        async with s.post(API_URL, json=payload,
+                          timeout=aiohttp.ClientTimeout(total=30)) as r:
+            data = await r.json(content_type=None)
     if not data.get("success"):
         errs = data.get("errors") or data.get("warnings") or ["невідома помилка НП"]
         raise NPError("; ".join(str(e) for e in errs))
