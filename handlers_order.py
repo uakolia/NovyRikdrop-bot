@@ -93,10 +93,16 @@ async def show_category(target, state: FSMContext):
 
 async def show_model(target, state: FSMContext, page: int = 0):
     data = await state.get_data()
+    # без прогрітих залишків не видно, які моделі в передзамовленні
+    await stock.rows_for(_uid(target))
     await state.set_state(Order.model)
     cat = catalog.categories()[data["cat_idx"]]
-    await _send(target, f"Категорія: <b>{cat}</b>\n\nОберіть модель:",
-                reply_markup=kb.models_kb(data["cat_idx"], page, _uid(target)))
+    uid = _uid(target)
+    hint = ("\n\n⭐ — ваше передзамовлення, ці моделі вгорі списку"
+            if any(catalog.model_in_stock(uid, m)
+                   for m in catalog.models_for(uid, cat)) else "")
+    await _send(target, f"Категорія: <b>{cat}</b>\n\nОберіть модель:{hint}",
+                reply_markup=kb.models_kb(data["cat_idx"], page, uid))
 
 
 async def show_variant(target, state: FSMContext):
@@ -519,7 +525,9 @@ async def models_page(cb: CallbackQuery, state: FSMContext):
 async def pick_model(cb: CallbackQuery, state: FSMContext):
     _, cat_idx, model_idx = cb.data.split(":")
     cat_idx, model_idx = int(cat_idx), int(model_idx)
-    model = catalog.models(catalog.categories()[cat_idx])[model_idx]
+    # той самий порядок, що й у клавіатурі, інакше номер вкаже не на ту модель
+    model = catalog.models_for(cb.from_user.id,
+                               catalog.categories()[cat_idx])[model_idx]
     await state.update_data(cat_idx=cat_idx, model_idx=model_idx, model=model)
     await show_variant(cb, state)
     await cb.answer()

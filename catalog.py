@@ -68,6 +68,31 @@ def models(category: str):
     return seen
 
 
+def model_in_stock(user_id: int | None, model_ua: str) -> bool:
+    """Чи є в дропшипера передзамовлення хоч на один розмір цієї моделі."""
+    if user_id is None:
+        return False
+    import stock
+    return any(stock.cached_row(user_id, v["article"]) for v in variants(model_ua))
+
+
+def models_for(user_id: int | None, category: str):
+    """Моделі категорії: спершу ті, що в передзамовленні цього дропшипера.
+
+    Лана продає переважно свої передзамовлені моделі, тож гортати через увесь
+    прайс їй не треба. Порядок усередині груп лишається прайсовий (стабільне
+    сортування).
+
+    ВАЖЛИВО: цим списком мають користуватися ВСІ місця, де модель береться за
+    номером (клавіатура, вибір моделі, список розмірів) — інакше кнопка вела б
+    не на ту модель.
+    """
+    ms = models(category)
+    if user_id is None:
+        return ms
+    return sorted(ms, key=lambda m: not model_in_stock(user_id, m))
+
+
 def variants(model_ua: str):
     """Всі розміри/варіанти моделі."""
     return [i for i in items() if i["model_ua"] == model_ua]

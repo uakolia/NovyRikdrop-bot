@@ -34,11 +34,15 @@ def categories_kb():
 
 def models_kb(cat_idx: int, page: int = 0, user_id: int | None = None):
     cats = catalog.categories()
-    ms = catalog.models(cats[cat_idx])
+    ms = catalog.models_for(user_id, cats[cat_idx])
     chunk = ms[page * PER_PAGE:(page + 1) * PER_PAGE]
-    rows = [[InlineKeyboardButton(text=catalog.model_label(m, user_id),
-                                  callback_data=f"mdl:{cat_idx}:{page * PER_PAGE + i}")]
-            for i, m in enumerate(chunk)]
+    rows = []
+    for i, m in enumerate(chunk):
+        # зірочка = модель із вашого передзамовлення, такі стоять першими
+        mark = "⭐ " if catalog.model_in_stock(user_id, m) else ""
+        rows.append([InlineKeyboardButton(
+            text=mark + catalog.model_label(m, user_id),
+            callback_data=f"mdl:{cat_idx}:{page * PER_PAGE + i}")])
     nav = []
     if page > 0:
         nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"mdlp:{cat_idx}:{page - 1}"))
@@ -53,7 +57,7 @@ def models_kb(cat_idx: int, page: int = 0, user_id: int | None = None):
 
 def variants_kb(cat_idx: int, model_idx: int, user_id: int | None = None):
     cats = catalog.categories()
-    model = catalog.models(cats[cat_idx])[model_idx]
+    model = catalog.models_for(user_id, cats[cat_idx])[model_idx]
     rows = []
     for i, v in enumerate(catalog.variants(model)):
         price = catalog.drop_price(v, user_id)
