@@ -160,6 +160,21 @@ def article_prefix(model_ua: str) -> str:
     return base
 
 
+# хвіст назви з розміром: «2.2м», «1,8 м», «60 см», «Ø30 см»
+# Хвіст із розміром: «2.2м», «1,8 м», «60 см», «Ø30 см», «2.5».
+# Голе ціле число без одиниць НЕ чіпаємо — воно може бути частиною назви
+# («Ялинка 3» лишається «Ялинка 3»).
+_SIZE_SUFFIX = re.compile(
+    r"[\s,–-]*(?:(?:Ø\s*)?\d+(?:[.,]\d+)?\s*(?:м|m|см|cm)|\d+[.,]\d+)$",
+    re.IGNORECASE)
+
+
+def strip_size(name: str) -> str:
+    """«Нью Йорк 2.2м» → «Нью Йорк». Порожній результат — лишаємо як було."""
+    clean = _SIZE_SUFFIX.sub("", (name or "").strip()).strip(" -–,")
+    return clean or (name or "").strip()
+
+
 def model_label(model_ua: str, user_id: int | None = None) -> str:
     """Назва моделі з артикулом: 'Українська (Cr3)'.
 
@@ -170,11 +185,12 @@ def model_label(model_ua: str, user_id: int | None = None) -> str:
     import stock
     pref = article_prefix(model_ua)
     vs = variants(model_ua)
-    # «Персональна назва» ведеться за розміром; для назви моделі беремо першу,
-    # яка є в залишках цього дропшипера
+    # «Персональна назва» ведеться за розміром; для назви МОДЕЛІ беремо першу,
+    # яка є в залишках, і прибираємо з неї розмір — «Нью Йорк 2.2м» у списку
+    # моделей має бути просто «Нью Йорк», розміри йдуть наступним екраном
     own = ""
     for v in vs:
-        own = stock.cached_name(user_id, v["article"])
+        own = strip_size(stock.cached_name(user_id, v["article"]))
         if own:
             break
     shown = own or aliases.model_name(user_id, model_ua,
