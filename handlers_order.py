@@ -9,6 +9,7 @@ from aiogram.types import (CallbackQuery, InlineKeyboardButton,
 
 import aliases
 import catalog, config, keyboards as kb, novaposhta as np, orders, payment, storage
+import perf
 import stock
 
 router = Router()
@@ -715,6 +716,13 @@ async def proof_later(cb: CallbackQuery, state: FSMContext):
 
 
 async def _finalize(target, state: FSMContext, *, proof_file_id, create_ttn: bool):
+    with perf.trace("оформлення замовлення"):
+        await _finalize_inner(target, state, proof_file_id=proof_file_id,
+                              create_ttn=create_ttn)
+
+
+async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
+                          create_ttn: bool):
     data = await state.get_data()
     item = catalog.by_article(data["article"])
     qty = data.get("qty", 1)
