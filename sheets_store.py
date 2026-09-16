@@ -34,6 +34,15 @@ TIMEOUT = aiohttp.ClientTimeout(total=30)
 UNAUTHORIZED = ("таблиця відхилила запит: SHEETS_API_SECRET не збігається з "
                 "Властивостями скрипту (або не заданий там)")
 
+# Стара версія скрипта не знає операцій із залишками: невідомий type у ній
+# провалюється у гілку «замовлення», тож вона бадьоро відповідає {ok:true},
+# дописавши у «Замовлення» зайвий рядок. Розпізнаємо це за відсутністю даних
+# про залишок у відповіді — інакше бот вирішив би, що резерв пройшов.
+OLD_SCRIPT = (NEED_UPDATE + "\n\n🔎 скрипт відповів без даних про залишки — "
+              "схоже, розгорнуто стару версію коду (у ній немає reserve_many). "
+              "Перевірте, що деплой зроблено як «Нова версія», а не збережено "
+              "лише в редакторі")
+
 
 def enabled() -> bool:
     return bool(config.SHEET_WEBHOOK_URL)
@@ -222,10 +231,12 @@ async def stock_op(op: str, user_id: int, article: str, qty: int):
     if err:
         return None, err
     if not isinstance(data, dict):
-        return None, NEED_UPDATE
+        return None, f"{NEED_UPDATE}\n\n🔎 відповідь: {_scrub(str(data))[:200]}"
     if not data.get("ok"):
         # тіло віддаємо разом із помилкою: у «not enough» там актуальний залишок
         return data, data.get("error") or "таблиця відхилила операцію"
+    if "available" not in data:
+        return None, OLD_SCRIPT
     return data, None
 
 
@@ -245,9 +256,11 @@ async def stock_op_many(op: str, user_id: int, items: list[dict]):
     if err:
         return None, err
     if not isinstance(data, dict):
-        return None, NEED_UPDATE
+        return None, f"{NEED_UPDATE}\n\n🔎 відповідь: {_scrub(str(data))[:200]}"
     if not data.get("ok"):
         return data, data.get("error") or "таблиця відхилила операцію"
+    if "items" not in data:
+        return None, OLD_SCRIPT
     return data, None
 
 
