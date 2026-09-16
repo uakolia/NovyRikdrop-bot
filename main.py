@@ -11,6 +11,8 @@ import access
 import aliases
 import article_key
 import catalog, config
+import np_tracking
+import stock
 import storage
 import handlers_admin as admin
 import handlers_order as order
@@ -39,10 +41,11 @@ async def check_stock_articles():
     for key, originals in dupes.items():
         log.error("Колізія ключа %s: %s — різні артикули збігаються після "
                   "нормалізації, зіставлення ненадійне", key, ", ".join(originals))
-    rows, err = await sheets_store.fetch_stock()
+    n_rows, err = await stock.refresh()
     if err:
         log.warning("Залишки дропшиперів не прочитались: %s", err)
         return
+    rows = stock.all_rows()
     missing = [r for r in rows if not catalog.by_article(r.get("article", ""))]
     for r in missing:
         log.error("Залишки: артикул %r (%s) не знайдено в каталозі — "
@@ -83,6 +86,7 @@ async def main():
         log.info("Власних назв товарів: %d", n_alias)
     await storage.init_order_seq()
     await check_stock_articles()
+    poller = asyncio.create_task(np_tracking.run_forever(bot))
 
     # HTTP-сервер (health-check для хостингу + вебхук Weblium)
     app = make_app(bot)
@@ -95,6 +99,7 @@ async def main():
     try:
         await dp.start_polling(bot)
     finally:
+        poller.cancel()
         await runner.cleanup()
 
 

@@ -142,10 +142,18 @@ def model_label(model_ua: str, user_id: int | None = None) -> str:
     щоб можна було звіритися з прайсом і швидко знайти позицію в підтримці).
     """
     import aliases
+    import stock
     pref = article_prefix(model_ua)
     vs = variants(model_ua)
-    shown = aliases.model_name(user_id, model_ua,
-                               vs[0]["article"] if vs else "")
+    # «Персональна назва» ведеться за розміром; для назви моделі беремо першу,
+    # яка є в залишках цього дропшипера
+    own = ""
+    for v in vs:
+        own = stock.cached_name(user_id, v["article"])
+        if own:
+            break
+    shown = own or aliases.model_name(user_id, model_ua,
+                                      vs[0]["article"] if vs else "")
     return f"{shown} ({pref})" if pref else shown
 
 
@@ -153,8 +161,34 @@ _TYPE_WORDS = ("віночок", "гірлянда", "ікебана", "наст
                "підвісна", "ялинка")
 
 
-def ttn_description(item) -> str:
-    """Опис для ТТН: «Ялинка Грандія 2.2 м (Cr6G-220)»."""
+def product_name(user_id: int | None, item) -> str:
+    """Назва товару очима дропшипера.
+
+    Порядок: «Персональна назва» із «Залишків дропшиперів» → власна назва з
+    «Назв товарів» (aliases) → заводська назва з прайсу.
+    """
+    if not item:
+        return ""
+    import aliases
+    import stock
+    own = stock.cached_name(user_id, item.get("article", ""))
+    return own or aliases.item_name(user_id, item)
+
+
+def ttn_description(item, user_id: int | None = None) -> str:
+    """Опис для ТТН: «Ялинка Грандія 2.2 м (Cr6G-220)».
+
+    Якщо у дропшипера є «Персональна назва» — беремо ЇЇ як є: вона вже містить
+    розмір («Нью Йорк 2.2м»), і size_label() дав би «Нью Йорк 2.2м 2.2 м».
+    В дужках завжди ОРИГІНАЛЬНИЙ артикул прайсу (не канонічний ключ) — саме
+    його знають фабрика й прайс.
+
+    В описі лише дані про товар: жодних ПІБ, телефонів чи адрес.
+    """
+    import stock
+    own = stock.cached_name(user_id, item.get("article", ""))
+    if own:
+        return f"{own} ({item['article']})"[:100]
     name = item["model_ua"]
     if not name.lower().startswith(_TYPE_WORDS):
         name = f"Ялинка {name}"

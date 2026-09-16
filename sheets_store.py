@@ -9,7 +9,10 @@
   GET  ?what=orders&id=<tg_id>     — замовлення дропшипера
   GET  ?what=maxorder              — максимальний номер замовлення
   GET  ?what=aliases               — власні назви товарів дропшиперів
-  GET  ?what=stock                 — «Залишки дропшиперів» (лише читання)
+  GET  ?what=stock                 — «Залишки дропшиперів»
+  GET  ?what=ttns                  — замовлення з ТТН і незавершеним статусом НП
+  POST {type: "reserve"|"receive"|"release", tg_id, article, qty}
+  POST {type: "ttn_status", updates: [{ttn, np_status}]}
   POST {type: "alias", ...}        — додати/оновити власну назву
 """
 import json
@@ -181,6 +184,47 @@ async def fetch_stock():
         if clean.get("article"):
             out.append(clean)
     return out, None
+
+
+async def stock_op(op: str, user_id: int, article: str, qty: int):
+    """reserve / receive / release. Повертає (дані, помилка).
+
+    Артикул шлемо ОРИГІНАЛЬНИЙ — у скрипті рядок шукається за канонічним
+    ключем, але в таблиці лишається те, що написано в прайсі.
+    """
+    data, err = await _post({"type": op, "tg_id": str(user_id),
+                             "article": article, "qty": int(qty)})
+    if err:
+        return None, err
+    if not isinstance(data, dict):
+        return None, NEED_UPDATE
+    if not data.get("ok"):
+        # тіло віддаємо разом із помилкою: у «not enough» там актуальний залишок
+        return data, data.get("error") or "таблиця відхилила операцію"
+    return data, None
+
+
+async def fetch_ttns():
+    """Замовлення з ТТН, статус яких ще не кінцевий."""
+    data, err = await _get({"what": "ttns"})
+    if err:
+        return None, err
+    rows = (data or {}).get("rows")
+    if rows is None:
+        return None, NEED_UPDATE
+    return rows, None
+
+
+async def push_ttn_statuses(updates: list[dict]):
+    """[{ttn, np_status}] одним запитом. Повертає (скільки записано, помилка)."""
+    if not updates:
+        return 0, None
+    data, err = await _post({"type": "ttn_status", "updates": updates})
+    if err:
+        return 0, err
+    if not (isinstance(data, dict) and data.get("ok")):
+        return 0, (data or {}).get("error") or NEED_UPDATE
+    return data.get("updated") or 0, None
 
 
 async def push_alias(user_id: int, key: str, name: str):

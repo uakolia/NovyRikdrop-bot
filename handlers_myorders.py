@@ -19,10 +19,19 @@ STATUS_ICON = {
 }
 
 
+def _product_name(user_id: int | None, o: dict) -> str:
+    """Назва очима дропшипера: «Персональна назва» → власна назва → з таблиці."""
+    import stock
+    article = o.get("article", "")
+    own = stock.cached_name(user_id, article)
+    if own:
+        return own
+    return aliases.name_by_article(user_id, article, o.get("product", ""))
+
+
 def _fmt(o: dict, user_id: int | None = None) -> str:
     icon = STATUS_ICON.get(str(o.get("status", "")).strip(), "•")
-    name = aliases.name_by_article(user_id, o.get("article", ""),
-                                   o.get("product", ""))
+    name = _product_name(user_id, o)
     head = (f"{icon} <b>№{o.get('order_no', '?')}</b> · {o.get('created_at', '')}\n"
             f"🌲 {name} — {o.get('size', '')}")
     if str(o.get("qty", "1")) not in ("", "1"):
@@ -47,6 +56,8 @@ def _fmt(o: dict, user_id: int | None = None) -> str:
 
 async def _load_orders(user_id: int, limit: int = 10):
     """Спершу таблиця (виживає деплої), потім локальний журнал."""
+    import stock
+    await stock.rows_for(user_id)          # щоб були персональні назви
     if sheets_store.enabled():
         rows, err = await sheets_store.fetch_orders(user_id, limit)
         if rows is not None:

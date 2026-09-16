@@ -13,7 +13,9 @@ FIELDS = ["order_no", "created_at", "source", "dropshipper_id", "dropshipper",
           "article", "product", "size", "qty", "price_drop", "payment",
           "recipient_fio", "recipient_phone", "city", "warehouse",
           "ttn", "status", "comment", "sale_price", "prepaid", "cod_amount",
-          "delivery", "due_amount", "payment_proof"]
+          "delivery", "due_amount", "payment_proof",
+          # нові поля — лише в кінець, щоб не зсунути колонки таблиці
+          "np_status", "updated_at"]
 
 
 ORDERS_JSON = os.path.join(config.DATA_DIR, "orders.json")

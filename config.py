@@ -38,6 +38,9 @@ SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
 # спільний секрет із Властивостями Apps Script (без нього скрипт відхиляє запити)
 SHEETS_API_SECRET = os.getenv("SHEETS_API_SECRET", "")
 
+# як часто перепитувати статуси ТТН у Нової Пошти, секунд (0 — не опитувати)
+TTN_POLL_SECONDS = int(os.getenv("TTN_POLL_SECONDS", "3600"))
+
 # Google Sheet прайс-лист (для /reload)
 PRICELIST_SHEET_ID = os.getenv("PRICELIST_SHEET_ID", "18OkfzTnujb_VFTX0UuDlkEwCBNiR1pFy5OeafHugYFg")
 # вкладки прайсу: (gid, назва). Номер видно в URL таблиці: #gid=...

@@ -3,6 +3,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 import aliases
 import catalog
+import stock
 
 PER_PAGE = 8
 
@@ -57,6 +58,10 @@ def variants_kb(cat_idx: int, model_idx: int, user_id: int | None = None):
     for i, v in enumerate(catalog.variants(model)):
         price = catalog.drop_price(v, user_id)
         label = f"{catalog.size_label(v)} — {price:,.0f} грн".replace(",", " ")
+        # залишок показуємо лише там, де він ведеться (C5: решта — як раніше)
+        left = stock.cached_available(user_id, v["article"])
+        if left is not None:
+            label += f" · {'немає' if left <= 0 else str(left) + ' шт'}"
         rows.append([InlineKeyboardButton(text=label, callback_data=f"var:{i}")])
     rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back:variant"),
                  InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")])

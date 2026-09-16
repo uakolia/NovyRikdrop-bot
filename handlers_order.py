@@ -9,6 +9,7 @@ from aiogram.types import (CallbackQuery, InlineKeyboardButton,
 
 import aliases
 import catalog, config, keyboards as kb, novaposhta as np, orders, payment, storage
+import stock
 
 router = Router()
 
@@ -96,6 +97,7 @@ async def show_model(target, state: FSMContext, page: int = 0):
 
 async def show_variant(target, state: FSMContext):
     data = await state.get_data()
+    await stock.rows_for(_uid(target))          # прогріти залишки для підписів
     await state.set_state(Order.variant)
     await _send(target,
                 f"Модель: <b>{catalog.model_label(data['model'], _uid(target))}</b>"
@@ -108,10 +110,13 @@ async def show_qty(target, state: FSMContext):
     data = await state.get_data()
     v = catalog.by_article(data["article"])
     await state.set_state(Order.qty)
+    left = await stock.available(_uid(target), v["article"])
+    left_line = "" if left is None else f"Доступно: <b>{left} шт</b>\n"
     await _send(target,
-                f"🌲 <b>{aliases.item_name(_uid(target), v)}</b> — "
+                f"🌲 <b>{catalog.product_name(_uid(target), v)}</b> — "
                 f"{catalog.size_label(v)}\n"
                 f"Артикул: <code>{v['article']}</code>\n"
+                f"{left_line}"
                 f"Вага: ~{v['weight_kg']:g} кг\n\nКількість:",
                 reply_markup=kb.qty_kb())
 
@@ -262,16 +267,30 @@ def _address_line(data) -> str:
     return f"🏢 {data['city']['name']}, {data['warehouse']['name']}"
 
 
+def _not_enough_text(left: int, qty: int) -> str:
+    return ("⚠️ <b>Стільки немає в наявності</b>\n\n"
+            f"Ви обрали {qty} шт, а за вашим передзамовленням вільно "
+            f"{left} шт.\n\nЗмініть кількість (кнопка «Назад») або "
+            "напишіть менеджеру.")
+
+
 async def show_confirm(target, state: FSMContext):
     data = await state.get_data()
     item = catalog.by_article(data["article"])
     qty = data.get("qty", 1)
     total = f"{catalog.drop_price(item, _uid(target)) * qty:,.0f}".replace(",", " ")
+    left = await stock.available(_uid(target), item["article"])
     await state.set_state(Order.confirm)
+    if left is not None and qty > left:
+        await _send(target, _not_enough_text(left, qty),
+                    reply_markup=kb.confirm_kb())
+        return
+    left_line = "" if left is None else f"📦 Доступно: {left} шт\n"
     await _send(target,
                 "📋 <b>Перевірте замовлення</b>\n\n"
-                f"🌲 {aliases.item_name(_uid(target), item)} — "
+                f"🌲 {catalog.product_name(_uid(target), item)} — "
                 f"{catalog.size_label(item)}\n"
+                f"{left_line}"
                 f"Артикул: <code>{item['article']}</code> × {qty}\n"
                 f"💰 Дроп-ціна: {total} грн\n"
                 f"{_payment_lines(data)}\n\n"
@@ -290,7 +309,7 @@ async def show_payment_proof(target, state: FSMContext):
                              data.get("cod_amount"))
     await state.update_data(due_amount=due)
     await state.set_state(Order.payment_proof)
-    hint = f"{aliases.item_name(_uid(target), item)} {catalog.size_label(item)}"
+    hint = f"{catalog.product_name(_uid(target), item)} {catalog.size_label(item)}"
     await _send(target, payment.details_text(due, hint),
                 reply_markup=_skip_back_kb("payment_proof", "proof:later",
                                            "⏭ Надішлю чек пізніше"))
@@ -658,6 +677,11 @@ async def confirm_order(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     item = catalog.by_article(data["article"])
     qty = data.get("qty", 1)
+    left = await stock.available(cb.from_user.id, item["article"])
+    if left is not None and qty > left:
+        await cb.message.edit_text(_not_enough_text(left, qty))
+        await cb.answer()
+        return
     due = payment.due_amount(int(catalog.drop_price(item, cb.from_user.id) * qty),
                              data.get("cod_amount"))
     if due > 0:
@@ -731,10 +755,30 @@ async def _finalize(target, state: FSMContext, *, proof_file_id, create_ttn: boo
     else:
         out = await target.answer("⏳ Оформлюю замовлення…")
 
+    # Резерв ДО створення ТТН: накладна на товар, якого немає, — гірше,
+    # ніж незавершене замовлення. Позиції без рядка залишків (C5) не резервуємо.
+    if await stock.available(user.id, item["article"]) is not None:
+        res_data, res_err = await stock.reserve(user.id, item["article"], qty)
+        if res_err:
+            left_now = (res_data or {}).get("available")
+            await out.edit_text(
+                "❌ <b>Замовлення не оформлено</b>\n\n"
+                + stock.error_text(res_err, left_now)
+                + "\n\nНакладну не створювали, у таблицю нічого не записали.")
+            if config.ADMIN_CHAT_ID:
+                try:
+                    await out.bot.send_message(
+                        config.ADMIN_CHAT_ID,
+                        f"⚠️ Резерв не пройшов: {order['article']} × {qty} "
+                        f"для {order['dropshipper']} — {res_err}")
+                except Exception:  # noqa: BLE001
+                    pass
+            return
+
     ttn_note = ""
     if config.NP_AUTO_TTN and create_ttn:
         try:
-            desc = catalog.ttn_description(item)
+            desc = catalog.ttn_description(item, user.id)
             res = await np.create_ttn(
                 recipient_city_ref=data["city"]["ref"],
                 recipient_warehouse_ref=(data.get("warehouse") or {}).get("ref", ""),
@@ -792,7 +836,7 @@ async def _finalize(target, state: FSMContext, *, proof_file_id, create_ttn: boo
 
     await out.edit_text(
         f"✅ <b>Замовлення №{order['order_no']} прийнято!</b>\n\n"
-        f"🌲 {aliases.item_name(user.id, item)} — {order['size']} × {qty}\n"
+        f"🌲 {catalog.product_name(user.id, item)} — {order['size']} × {qty}\n"
         f"👤 {order['recipient_fio']}\n"
         f"{_address_line(data)}\n"
         f"💳 {order['payment']}"
