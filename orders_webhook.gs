@@ -505,10 +505,17 @@ function doGet(e) {
           if (st.indexOf(NP_FINAL[f]) >= 0) { final = true; break; }
         }
         if (final) continue;
+        // Таблиця сама перетворює «16.09.2026 00:53» на дату, але не завжди
+        // (залежить від локалі), тож віддаємо обидва випадки в одному форматі.
+        // Час беремо в часовому поясі таблиці: toISOString() зсунув би його в
+        // UTC, і бот рахував би замовлення на кілька годин старшим.
         var made = tv[t][orderCol_("created_at") - 1];
         trows.push({
           order_no: tv[t][orderCol_("order_no") - 1],
-          created_at: (made instanceof Date) ? made.toISOString() : trim_(made),
+          created_at: (made instanceof Date)
+            ? Utilities.formatDate(made, Session.getScriptTimeZone(),
+                                   "yyyy-MM-dd HH:mm:ss")
+            : trim_(made),
           ttn: ttn,
           tg_id: trim_(tv[t][orderCol_("dropshipper_id") - 1]),
           article: trim_(tv[t][orderCol_("article") - 1]),

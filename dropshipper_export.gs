@@ -24,6 +24,18 @@ var EXPORT_HEADERS = ["Номер замовлення", "Дата", "Назва
   "Місто", "Відділення / адреса", "ТТН", "Статус замовлення",
   "Статус Nova Poshta", "Коментар"];
 
+// «· резерв знято» — наша внутрішня позначка в головній таблиці; у таблиці
+// дропшипера вона не потрібна, там має бути лише статус від НП
+var INTERNAL_MARKS = [" · резерв знято", "· резерв знято"];
+
+function publicStatus_(value) {
+  var s = String(value === null || value === undefined ? "" : value);
+  for (var i = 0; i < INTERNAL_MARKS.length; i++) {
+    s = s.split(INTERNAL_MARKS[i]).join("");
+  }
+  return s.trim();
+}
+
 var EXPORT_ORDER_NO_COL = 1;
 var EXPORT_TTN_COL = 12;
 var EXPORT_NP_STATUS_COL = 14;
@@ -141,7 +153,7 @@ function dropshipperExportRow_(order) {
     exportField_(order, "warehouse", "Відділення / адреса"),
     exportField_(order, "ttn", "ТТН"),
     exportField_(order, "status", "Статус"),
-    exportField_(order, "np_status", "Статус Nova Poshta"),
+    publicStatus_(exportField_(order, "np_status", "Статус Nova Poshta")),
     exportField_(order, "comment", "Коментар")
   ];
 }
@@ -201,7 +213,7 @@ function updateDropshipperOrderStatus_(mainSheet, info) {
     return exportDropshipperOrder(order);
   }
   sh.getRange(row, EXPORT_TTN_COL).setValue(info.ttn || "");
-  sh.getRange(row, EXPORT_NP_STATUS_COL).setValue(info.np_status || "");
+  sh.getRange(row, EXPORT_NP_STATUS_COL).setValue(publicStatus_(info.np_status));
   return true;
 }
 
