@@ -30,6 +30,26 @@ class NPSetup(StatesGroup):
     wh_pick = State()
 
 
+@router.message(Command("np_sync"))
+async def cmd_np_sync(msg: Message):
+    """Перевірити статуси НП прямо зараз, не чекаючи щогодинного циклу."""
+    if not _is_admin(msg.from_user.id):
+        return
+    import np_tracking
+    await msg.answer("⏳ Питаю Нову Пошту про статуси…")
+    try:
+        n, err = await np_tracking.poll_once(msg.bot)
+    except Exception as e:  # noqa: BLE001
+        await msg.answer(f"⚠️ Не вдалося: {e}")
+        return
+    if err:
+        await msg.answer(f"⚠️ {err}")
+    else:
+        await msg.answer(f"✅ Готово. Оновлено рядків: {n}\n\n"
+                         "0 означає, що в НП статуси ще ті самі — "
+                         "у таблиці пишемо лише зміни.")
+
+
 @router.message(Command("np_setup"))
 async def cmd_np_setup(msg: Message, state: FSMContext):
     if not _is_admin(msg.from_user.id):

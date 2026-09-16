@@ -13,7 +13,7 @@
    - опційно: PRICE_TIER (drop1/drop2/drop3), NP_PAYER_TYPE (Recipient/Sender), ADMIN_CHAT_ID, WEBLIUM_SECRET
 
 ## Команди адміна
-/users — список дропшиперів, /block ID — закрити доступ, /reload — оновити ціни з прайсу, /id — показати ID чату
+/users — список дропшиперів, /block ID — закрити доступ, /reload — оновити ціни з прайсу, /id — показати ID чату, /np_sync — перевірити статуси ТТН зараз
 
 ## Часовий пояс
 У Railway має бути змінна `TZ=Europe/Kyiv`, і той самий пояс — у таблиці

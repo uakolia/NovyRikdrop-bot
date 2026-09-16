@@ -183,6 +183,8 @@ async def poll_once(bot=None):
     if err:
         return 0, err
     if not rows:
+        log.info("Немає накладних для перевірки (усі статуси кінцеві або ТТН "
+                 "ще не створені)")
         return 0, None
 
     # рядки однієї накладної — це позиції одного замовлення
@@ -192,6 +194,8 @@ async def poll_once(bot=None):
         if ttn:
             by_ttn.setdefault(ttn, []).append(r)
 
+    log.info("Перевіряю статуси НП: накладних %d, рядків %d",
+             len(by_ttn), len(rows))
     statuses = await fetch_statuses(
         [{"ttn": ttn, "phone": group[0].get("phone", "")}
          for ttn, group in by_ttn.items()])
@@ -345,21 +349,31 @@ async def _apply_transition(bot, group: list, now: str, fresh: dict, stock):
         log.warning("ТТН %s: перехід у «%s» не оброблено: %s", ttn, now, e)
 
 
+# скільки чекати перед ПЕРШИМ опитуванням: дати боту стартувати, але не
+# відкладати на годину — редеплой Railway обнуляє відлік, і при частих
+# перезапусках статуси не оновлювалися б ніколи
+FIRST_RUN_DELAY = 60
+
+
 async def run_forever(bot):
     """Фоновий цикл. Будь-яка помилка всередині не має вбивати задачу."""
     period = config.TTN_POLL_SECONDS
     if period <= 0:
         log.info("Опитування статусів НП вимкнено (TTN_POLL_SECONDS=0)")
         return
-    log.info("Статуси НП оновлюються кожні %d с", period)
+    log.info("Статуси НП: перша перевірка через %d с, далі кожні %d с",
+             FIRST_RUN_DELAY, period)
+    delay = min(FIRST_RUN_DELAY, period)
     while True:
-        await asyncio.sleep(period)
+        await asyncio.sleep(delay)
+        delay = period
         try:
             n, err = await poll_once(bot)
             if err:
                 log.warning("Статуси НП не оновились: %s", err)
-            elif n:
-                log.info("Оновлено статусів НП: %d", n)
+            else:
+                # пишемо і нулі: так у логах видно, що цикл живий
+                log.info("Статуси НП перевірено, оновлено рядків: %d", n)
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001
