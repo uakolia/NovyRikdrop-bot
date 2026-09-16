@@ -114,6 +114,33 @@ def warehouses_kb(warehouses, page: int = 0, back_step: str = "warehouse"):
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def cart_kb(items: list[dict]):
+    """Кошик: рядок на позицію з ✖️, далі «додати ще» і «до оформлення».
+
+    items = [{"label": що показати, "idx": номер у кошику}]
+    """
+    rows = [[InlineKeyboardButton(text=f"✖️ {it['label']}",
+                                  callback_data=f"cart:del:{it['idx']}")]
+            for it in items]
+    rows.append([InlineKeyboardButton(text="➕ Додати ще товар",
+                                      callback_data="cart:add")])
+    rows.append([InlineKeyboardButton(text="✅ Перейти до оформлення",
+                                      callback_data="cart:done")])
+    rows.append([InlineKeyboardButton(text="✖️ Скасувати",
+                                      callback_data="order:cancel")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def partial_ttn_kb():
+    """Частина накладних створилась, одна впала — рішення за дропшипером."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Залишити створені накладні",
+                              callback_data="partial:keep")],
+        [InlineKeyboardButton(text="✖️ Скасувати все замовлення",
+                              callback_data="partial:cancel")],
+    ])
+
+
 def confirm_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Підтвердити замовлення", callback_data="confirm:yes")],

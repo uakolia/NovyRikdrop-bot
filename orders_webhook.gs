@@ -227,23 +227,42 @@ function doPost(e) {
     return stockOp_(type, data);
   }
 
+  if (type === "reserve_many" || type === "release_many") {
+    return stockOpMany_(type === "reserve_many" ? "reserve" : "release", data);
+  }
+
   if (type === "ttn_status") {
     return ttnStatus_(data);
   }
 
   var osh = sheet_(ORDERS_SHEET, ORDER_HEADERS);
   ensureHeaders_(osh, ORDER_HEADERS);
-  var orow = ORDER_KEYS.map(function (k) {
-    return data[k] !== undefined ? data[k] : "";
-  });
-  osh.appendRow(orow);
-  // дублюємо в таблицю дропшипера; збій експорту не має валити замовлення
-  try {
-    exportDropshipperOrder(data);
-  } catch (err) {
-    Logger.log("Експорт замовлення не вдався: " + err);
+
+  // Замовлення з кількох позицій: рядок на позицію, спільні поля (номер,
+  // отримувач, оплата, доставка) повторюються. Без items — один рядок, як
+  // раніше: так пишуть замовлення з сайту й старі версії бота.
+  var items = (data.items && data.items.length) ? data.items : [data];
+  var written = 0;
+  for (var n = 0; n < items.length; n++) {
+    var line = {};
+    for (var k in data) {
+      if (k !== "items") line[k] = data[k];
+    }
+    for (var f in items[n]) {
+      line[f] = items[n][f];
+    }
+    osh.appendRow(ORDER_KEYS.map(function (key) {
+      return line[key] !== undefined ? line[key] : "";
+    }));
+    written++;
+    // дублюємо в таблицю дропшипера; збій експорту не має валити замовлення
+    try {
+      exportDropshipperOrder(line);
+    } catch (err) {
+      Logger.log("Експорт замовлення не вдався: " + err);
+    }
   }
-  return json_({ ok: true });
+  return json_({ ok: true, rows: written });
 }
 
 /**
@@ -367,6 +386,112 @@ function checkAvailableFormulas() {
 }
 
 /**
+ * Резерв (або зняття) кількох позицій за один раз — «все або нічого».
+ *
+ * Спершу перевіряємо ВСІ позиції й лише потім пишемо. Інакше між перевіркою
+ * однієї позиції й записом іншої встигне вклинитися чужий резерв, і
+ * замовлення лишиться наполовину зарезервованим.
+ *
+ * data = {tg_id, items: [{article, qty}]}
+ */
+function stockOpMany_(op, data) {
+  var items = data.items || [];
+  if (!items.length) return json_({ ok: false, error: "no items" });
+
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(LOCK_WAIT_MS);
+  } catch (err) {
+    return json_({ ok: false, error: "sheet busy" });
+  }
+  try {
+    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(STOCK_SHEET);
+    if (!sh || sh.getLastRow() < 2) {
+      return json_({ ok: false, error: "no stock sheet" });
+    }
+    var width = Math.max(sh.getLastColumn(), STOCK_COLS.updated);
+    var vals = sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues();
+    var tg = trim_(data.tg_id);
+
+    // 1) знайти рядки й порахувати, що вийде, нічого не записуючи
+    var planned = [];     // {row, reserved, article}
+    var missing = [];     // чого не вистачає
+    var unknown = [];     // артикулів немає в залишках
+    var byRow = {};       // накопичуємо, якщо той самий артикул двічі
+    for (var i = 0; i < items.length; i++) {
+      var qty = num_(items[i].qty);
+      if (!(qty > 0)) return json_({ ok: false, error: "qty must be > 0" });
+      var want = canonArticle_(items[i].article);
+      var row = -1;
+      for (var r = 0; r < vals.length; r++) {
+        if (trim_(vals[r][STOCK_COLS.tg_id - 1]) === tg &&
+            canonArticle_(vals[r][STOCK_COLS.article - 1]) === want) {
+          row = r + 2; break;
+        }
+      }
+      if (row < 0) { unknown.push(trim_(items[i].article)); continue; }
+
+      var v = vals[row - 2];
+      var state = byRow[row];
+      if (!state) {
+        state = byRow[row] = {
+          row: row,
+          article: trim_(v[STOCK_COLS.article - 1]),
+          allocated: num_(v[STOCK_COLS.allocated - 1]),
+          delivered: num_(v[STOCK_COLS.delivered - 1]),
+          wasReserved: num_(v[STOCK_COLS.reserved - 1]),
+          asked: 0                       // скільки просять саме цим запитом
+        };
+        planned.push(state);
+      }
+      state.asked += qty;                // той самий артикул двічі — складаємо
+    }
+
+    if (unknown.length) {
+      return json_({ ok: false, error: "no stock row", articles: unknown });
+    }
+
+    // 2) перевірити по кожному рядку, порівнюючи з тим, що було ДО запиту
+    for (var p = 0; p < planned.length; p++) {
+      var st = planned[p];
+      if (op === "reserve") {
+        var free = st.allocated - st.wasReserved - st.delivered;
+        if (st.asked > free) {
+          missing.push({ article: st.article, available: free,
+                         requested: st.asked });
+        }
+      } else if (st.asked > st.wasReserved) {
+        missing.push({ article: st.article, reserved: st.wasReserved,
+                       requested: st.asked });
+      }
+    }
+    if (missing.length) {
+      return json_({ ok: false,
+                     error: op === "reserve" ? "not enough"
+                                             : "not enough reserved",
+                     items: missing });
+    }
+
+    // 3) усе сходиться — тепер пишемо
+    var now = new Date();
+    var result = [];
+    for (var w = 0; w < planned.length; w++) {
+      var s2 = planned[w];
+      var reserved = (op === "reserve") ? s2.wasReserved + s2.asked
+                                        : s2.wasReserved - s2.asked;
+      sh.getRange(s2.row, STOCK_COLS.reserved).setValue(reserved);
+      sh.getRange(s2.row, STOCK_COLS.updated).setValue(now);
+      result.push({ article: s2.article, reserved: reserved,
+                    available: s2.allocated - reserved - s2.delivered });
+    }
+    SpreadsheetApp.flush();
+    return json_({ ok: true, items: result });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Пакетний запис статусів НП: updates = [{ttn, np_status}, ...].
  * Пишемо лише «Статус Nova Poshta» й «Оновлено» — решту колонок не чіпаємо.
  * Під замком, щоб не зіткнутися з доданням нового замовлення.
@@ -387,23 +512,30 @@ function ttnStatus_(data) {
     var last = sh.getLastRow();
     if (last < 2) return json_({ ok: true, updated: 0 });
 
+    // одна ТТН може стояти в кількох рядках (позиції одного замовлення,
+    // якщо колись поїдуть однією накладною) — оновлюємо ВСІ такі рядки
     var ttns = sh.getRange(2, ORDER_TTN_COL, last - 1, 1).getValues();
     var byTtn = {};
     for (var i = 0; i < ttns.length; i++) {
       var t = trim_(ttns[i][0]);
-      if (t) byTtn[t] = i + 2;
+      if (!t) continue;
+      if (!byTtn[t]) byTtn[t] = [];
+      byTtn[t].push(i + 2);
     }
     var now = new Date();
     var done = 0;
     var exported = [];
     for (var u = 0; u < updates.length; u++) {
-      var row = byTtn[trim_(updates[u].ttn)];
-      if (!row) continue;
-      sh.getRange(row, ORDER_NP_STATUS_COL).setValue(updates[u].np_status || "");
-      sh.getRange(row, ORDER_UPDATED_COL).setValue(now);
-      done++;
-      exported.push({ row: row, ttn: trim_(updates[u].ttn),
-                      np_status: updates[u].np_status || "" });
+      var rows = byTtn[trim_(updates[u].ttn)];
+      if (!rows) continue;
+      for (var q = 0; q < rows.length; q++) {
+        sh.getRange(rows[q], ORDER_NP_STATUS_COL)
+          .setValue(updates[u].np_status || "");
+        sh.getRange(rows[q], ORDER_UPDATED_COL).setValue(now);
+        done++;
+        exported.push({ row: rows[q], ttn: trim_(updates[u].ttn),
+                        np_status: updates[u].np_status || "" });
+      }
     }
     SpreadsheetApp.flush();
     // у таблиці дропшипера оновлюємо ТТН і статус НП; збій експорту не має

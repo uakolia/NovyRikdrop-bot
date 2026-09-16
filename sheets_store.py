@@ -12,6 +12,7 @@
   GET  ?what=stock                 — «Залишки дропшиперів»
   GET  ?what=ttns                  — замовлення з ТТН і незавершеним статусом НП
   POST {type: "reserve"|"receive"|"release", tg_id, article, qty}
+  POST {type: "reserve_many"|"release_many", tg_id, items: [{article, qty}]}
   POST {type: "ttn_status", updates: [{ttn, np_status}]}
   POST {type: "alias", ...}        — додати/оновити власну назву
 """
@@ -116,7 +117,27 @@ async def _get(params: dict):
 
 
 async def push_order(order: dict):
-    data, err = await _post({"type": "order", **order})
+    return await push_order_rows([order])
+
+
+async def push_order_rows(rows: list[dict]):
+    """Замовлення одним запитом: спільні поля + items на кожну позицію.
+
+    Один рядок — той самий формат, що й раніше (без items), тож замовлення
+    з сайту і старі виклики працюють без змін.
+    """
+    if not rows:
+        return None
+    head = rows[0]
+    if len(rows) == 1:
+        payload = {"type": "order", **head}
+    else:
+        import orders
+        common = {k: v for k, v in head.items() if k not in orders.ITEM_FIELDS}
+        payload = {"type": "order", **common,
+                   "items": [{k: r.get(k, "") for k in orders.ITEM_FIELDS}
+                             for r in rows]}
+    data, err = await _post(payload)
     if err:
         return err
     if not (isinstance(data, dict) and data.get("ok")):
@@ -204,6 +225,28 @@ async def stock_op(op: str, user_id: int, article: str, qty: int):
         return None, NEED_UPDATE
     if not data.get("ok"):
         # тіло віддаємо разом із помилкою: у «not enough» там актуальний залишок
+        return data, data.get("error") or "таблиця відхилила операцію"
+    return data, None
+
+
+async def stock_op_many(op: str, user_id: int, items: list[dict]):
+    """reserve_many / release_many — усі позиції під одним замком скрипта.
+
+    Резерв кількох позицій має бути «все або нічого»: якщо перевіряти й писати
+    по одній, між викликами встигне вклинитися чужий резерв, і замовлення
+    лишиться наполовину зарезервованим.
+
+    Повертає (дані, помилка). При «not enough» у даних — список позицій,
+    яких бракує: [{article, available, requested}].
+    """
+    payload = [{"article": i["article"], "qty": int(i["qty"])} for i in items]
+    data, err = await _post({"type": op, "tg_id": str(user_id),
+                             "items": payload})
+    if err:
+        return None, err
+    if not isinstance(data, dict):
+        return None, NEED_UPDATE
+    if not data.get("ok"):
         return data, data.get("error") or "таблиця відхилила операцію"
     return data, None
 

@@ -37,6 +37,7 @@ function publicStatus_(value) {
 }
 
 var EXPORT_ORDER_NO_COL = 1;
+var EXPORT_ARTICLE_COL = 4;
 var EXPORT_TTN_COL = 12;
 var EXPORT_NP_STATUS_COL = 14;
 
@@ -158,14 +159,28 @@ function dropshipperExportRow_(order) {
   ];
 }
 
-/** Номер рядка з таким номером замовлення або -1. */
-function exportFindRow_(sh, orderNo) {
+/**
+ * Номер рядка за номером замовлення І артикулом, або -1.
+ *
+ * Ключ складений: у замовленні з кількох позицій рядків із тим самим номером
+ * кілька, і пошук лише за номером перезаписував би перший рядок раз за разом.
+ * Артикул звіряємо канонічним ключем — у прайсі є кириличні двійники літер.
+ */
+function exportFindRow_(sh, orderNo, article) {
   var last = sh.getLastRow();
   if (last < 2 || orderNo === "" || orderNo === null) return -1;
   var want = String(orderNo).trim();
-  var values = sh.getRange(2, EXPORT_ORDER_NO_COL, last - 1, 1).getValues();
+  var wantArt = canonArticle_(article);
+  var values = sh.getRange(2, 1, last - 1,
+                           Math.max(sh.getLastColumn(), EXPORT_ARTICLE_COL))
+                 .getValues();
   for (var i = 0; i < values.length; i++) {
-    if (String(values[i][0] || "").trim() === want) return i + 2;
+    if (String(values[i][EXPORT_ORDER_NO_COL - 1] || "").trim() !== want) {
+      continue;
+    }
+    var rowArt = canonArticle_(values[i][EXPORT_ARTICLE_COL - 1]);
+    // старі рядки (одна позиція) могли лягти без артикула — вважаємо збігом
+    if (!wantArt || !rowArt || rowArt === wantArt) return i + 2;
   }
   return -1;
 }
@@ -181,7 +196,8 @@ function exportDropshipperOrder(order) {
     var sh = exportSheetFor_(tgId);
     if (!sh) return false;                       // для цього ID експорт не налаштовано
     var row = dropshipperExportRow_(order);
-    var existing = exportFindRow_(sh, row[EXPORT_ORDER_NO_COL - 1]);
+    var existing = exportFindRow_(sh, row[EXPORT_ORDER_NO_COL - 1],
+                                  row[EXPORT_ARTICLE_COL - 1]);
     if (existing > 0) {
       sh.getRange(existing, 1, 1, row.length).setValues([row]);
     } else {
@@ -205,7 +221,8 @@ function updateDropshipperOrderStatus_(mainSheet, info) {
   var sh = exportSheetFor_(tgId);
   if (!sh) return false;
   var orderNo = vals[ORDER_KEYS.indexOf("order_no")];
-  var row = exportFindRow_(sh, orderNo);
+  var article = vals[ORDER_KEYS.indexOf("article")];
+  var row = exportFindRow_(sh, orderNo, article);
   if (row < 0) {
     // рядка ще немає (замовлення створене до вмикання експорту) — додамо цілком
     var order = {};

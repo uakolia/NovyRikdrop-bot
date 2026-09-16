@@ -126,6 +126,30 @@ async def _op(op: str, user_id, article: str, qty: int):
     return data, err
 
 
+async def _op_many(op: str, user_id, items: list[dict]):
+    import sheets_store
+    if not sheets_store.enabled():
+        return None, "таблиця не налаштована"
+    data, err = await sheets_store.stock_op_many(op, user_id, items)
+    invalidate(user_id)
+    return data, err
+
+
+async def reserve_many(user_id, items: list[dict]):
+    """Зарезервувати кілька позицій за один раз, «все або нічого».
+
+    items = [{article, qty}]. Помилка «not enough» означає, що в таблиці
+    НІЧОГО не змінилося — скрипт перевіряє всі позиції до запису, тож
+    відкочувати часткові резерви не доводиться.
+    """
+    return await _op_many("reserve_many", user_id, items)
+
+
+async def release_many(user_id, items: list[dict]):
+    """Зняти резерв із кількох позицій (скасування замовлення)."""
+    return await _op_many("release_many", user_id, items)
+
+
 async def reserve(user_id, article: str, qty: int):
     """Зарезервувати qty. Повертає (дані, помилка); помилка «not enough» —
     залишку не вистачило (перевірку робить скрипт під замком)."""
@@ -140,6 +164,18 @@ async def receive(user_id, article: str, qty: int):
 async def release(user_id, article: str, qty: int):
     """Повернути резерв (замовлення скасоване або ТТН видалена)."""
     return await _op("release", user_id, article, qty)
+
+
+def not_enough_text(missing: list[dict]) -> str:
+    """Текст про позиції, яких не вистачило (відповідь reserve_many)."""
+    lines = []
+    for m in missing or []:
+        lines.append(f"• <code>{m.get('article')}</code>: просили "
+                     f"{m.get('requested')} шт, вільно {m.get('available')} шт")
+    body = "\n".join(lines) or "позиції немає в наявності"
+    return ("⚠️ <b>Не вистачає залишку</b>\n\n" + body +
+            "\n\nЗамовлення не оформлено, накладних не створювали. "
+            "Змініть кількість у кошику або зверніться до менеджера.")
 
 
 def error_text(err: str, available_now=None) -> str:

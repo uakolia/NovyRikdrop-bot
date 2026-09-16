@@ -60,6 +60,15 @@ def save_csv(order: dict):
         w.writerow(order)
 
 
+async def send_to_sheet_rows(rows: list[dict]) -> str | None:
+    """Усе замовлення одним запитом: рядок на позицію, спільний номер."""
+    if not rows:
+        return None
+    if not config.SHEET_WEBHOOK_URL:
+        return None
+    return await sheets_store.push_order_rows(rows)
+
+
 async def send_to_sheet(order: dict) -> str | None:
     """Записати замовлення в Google Таблицю. Повертає текст помилки або None.
 
@@ -70,6 +79,28 @@ async def send_to_sheet(order: dict) -> str | None:
     return await sheets_store.push_order(order)
 
 
+# поля, які в замовленні з кількох позицій у кожного рядка свої;
+# решта (отримувач, оплата, доставка, номер) — спільні
+ITEM_FIELDS = ("article", "product", "size", "qty", "price_drop", "ttn",
+               "status", "comment")
+
+
+def new_rows(items: list[dict], **common) -> list[dict]:
+    """Рядки одного замовлення: по одному на позицію, спільні поля однакові.
+
+    Замовлення з однієї позиції дає один рядок — точно такий, як раніше,
+    тож старі замовлення читаються без змін.
+    """
+    rows = []
+    for it in items:
+        row = new_order(**common)
+        for k in ITEM_FIELDS:
+            if k in it:
+                row[k] = it[k]
+        rows.append(row)
+    return rows
+
+
 def new_order(**kw) -> dict:
     order = {k: "" for k in FIELDS}
     # час у зоні таблиці, а не в тій, що трапилась контейнеру
@@ -78,6 +109,54 @@ def new_order(**kw) -> dict:
     order["qty"] = 1
     order.update(kw)
     return order
+
+
+def rows_total(rows: list[dict]) -> int:
+    total = 0
+    for r in rows:
+        try:
+            total += int(r.get("price_drop") or 0)
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
+def admin_text_multi(rows: list[dict]) -> str:
+    """Замовлення з кількох позицій одним повідомленням адміну."""
+    if not rows:
+        return ""
+    if len(rows) == 1:
+        return admin_text(rows[0])
+    head = rows[0]
+    lines = [f"🆕 <b>Замовлення №{head['order_no']}</b> ({head['source']}) — "
+             f"{len(rows)} позиції"]
+    for r in rows:
+        line = (f"\n🌲 {r['product']} — {r['size']}\n"
+                f"Артикул: <code>{r['article']}</code> × {r['qty']} — "
+                f"{r['price_drop']} грн")
+        if r.get("ttn"):
+            line += f"\n📦 ТТН: <code>{r['ttn']}</code>"
+        elif r.get("status"):
+            line += f"\n⚠️ {r['status']}"
+        lines.append(line)
+    lines.append(f"\n💰 Разом: <b>{rows_total(rows)} грн</b> | "
+                 f"Оплата: <b>{head['payment']}</b>")
+    if head.get("cod_amount"):
+        lines.append(f"💵 При отриманні: <b>{head['cod_amount']} грн</b>")
+    lines += ["",
+              f"👤 {head['recipient_fio']}",
+              f"📞 {head['recipient_phone']}",
+              f"📍 {head['city']}, {head['warehouse']}",
+              "",
+              f"Дропшипер: {head['dropshipper']} (id {head['dropshipper_id']})"]
+    if head.get("due_amount"):
+        pf = {"надіслано": "📸 чек надіслано", "очікується": "⏳ чек не надіслано"}
+        lines.append(f"🏦 На рахунок: <b>{head['due_amount']} грн</b> · "
+                     f"{pf.get(head.get('payment_proof'), '—')}")
+    comments = [r["comment"] for r in rows if r.get("comment")]
+    if comments:
+        lines.append("💬 " + " | ".join(dict.fromkeys(comments)))
+    return "\n".join(lines)
 
 
 def admin_text(order: dict) -> str:

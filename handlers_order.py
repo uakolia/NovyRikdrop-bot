@@ -8,6 +8,7 @@ from aiogram.types import (CallbackQuery, InlineKeyboardButton,
                            InlineKeyboardMarkup, Message)
 
 import aliases
+import article_key
 import catalog, config, keyboards as kb, novaposhta as np, orders, payment, storage
 import perf
 import stock
@@ -20,6 +21,7 @@ class Order(StatesGroup):
     model = State()
     variant = State()
     qty = State()
+    cart = State()
     payment = State()
     sale_price = State()
     prepaid = State()
@@ -37,12 +39,13 @@ class Order(StatesGroup):
     flat = State()
     confirm = State()
     payment_proof = State()
+    partial_ttn = State()
 
 
 # з якого кроку куди веде «⬅️ Назад»
 PREV = {
     "model": "category", "variant": "model", "qty": "variant",
-    "payment": "qty", "sale_price": "payment", "prepaid": "sale_price",
+    "payment": "cart", "sale_price": "payment", "prepaid": "sale_price",
     "lname": "payment", "fname": "lname", "mname": "fname",
     "phone": "mname", "city": "phone", "city_pick": "city",
     "delivery": "city_pick", "warehouse": "delivery", "street": "delivery",
@@ -107,12 +110,106 @@ async def show_variant(target, state: FSMContext):
                                             _uid(target)))
 
 
+def cart_of(data) -> list[dict]:
+    """Позиції замовлення: [{article, qty}]. Порожній список — кошик чистий."""
+    return list(data.get("cart") or [])
+
+
+def cart_qty(cart, article: str) -> int:
+    """Скільки цього артикула вже в кошику (щоб не обійти залишок двома порціями)."""
+    key = article_key.canon(article)
+    return sum(int(i["qty"]) for i in cart
+               if article_key.canon(i["article"]) == key)
+
+
+def cart_add(cart, article: str, qty: int) -> list[dict]:
+    """Той самий артикул не дублюємо рядком, а збільшуємо кількість."""
+    key = article_key.canon(article)
+    for item in cart:
+        if article_key.canon(item["article"]) == key:
+            item["qty"] = int(item["qty"]) + int(qty)
+            return cart
+    cart.append({"article": article, "qty": int(qty)})
+    return cart
+
+
+def cart_price(user_id, item_row) -> int:
+    v = catalog.by_article(item_row["article"])
+    return int(catalog.drop_price(v, user_id) * int(item_row["qty"]))
+
+
+def cart_total(user_id, cart) -> int:
+    return sum(cart_price(user_id, i) for i in cart)
+
+
+async def show_cart(target, state: FSMContext):
+    """Кошик: що вже обрано, і куди далі."""
+    data = await state.get_data()
+    cart = cart_of(data)
+    uid = _uid(target)
+    if not cart:
+        await show_category(target, state)
+        return
+    await state.set_state(Order.cart)
+    lines = ["🧺 <b>Ваше замовлення</b>\n"]
+    buttons = []
+    for i, it in enumerate(cart):
+        v = catalog.by_article(it["article"])
+        name = catalog.product_name(uid, v)
+        price = cart_price(uid, it)
+        lines.append(f"{i + 1}. {name} — {catalog.size_label(v)}\n"
+                     f"    <code>{it['article']}</code> × {it['qty']} = "
+                     f"{price:,} грн".replace(",", " "))
+        buttons.append({"idx": i,
+                        "label": f"{name} × {it['qty']}"[:40]})
+    lines.append(f"\n💰 <b>Разом: {cart_total(uid, cart):,} грн</b>"
+                 .replace(",", " "))
+    lines.append("\nКожна позиція їде окремою накладною.")
+    await _send(target, "\n".join(lines), reply_markup=kb.cart_kb(buttons))
+
+
+@router.callback_query(F.data == "cart:add")
+async def cart_add_more(cb: CallbackQuery, state: FSMContext):
+    await show_category(cb, state)          # кошик у стані лишається
+    await cb.answer()
+
+
+@router.callback_query(F.data == "cart:done")
+async def cart_done(cb: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    if not cart_of(data):
+        await cb.answer("Кошик порожній", show_alert=True)
+        return
+    await show_payment(cb, state)
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("cart:del:"))
+async def cart_delete(cb: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    cart = cart_of(data)
+    idx = int(cb.data.rsplit(":", 1)[1])
+    if 0 <= idx < len(cart):
+        cart.pop(idx)
+        await state.update_data(cart=cart)
+    await cb.answer("Прибрано")
+    if cart:
+        await show_cart(cb, state)
+    else:
+        await show_category(cb, state)
+
+
 async def show_qty(target, state: FSMContext):
     data = await state.get_data()
     v = catalog.by_article(data["article"])
     await state.set_state(Order.qty)
     left = await stock.available(_uid(target), v["article"])
-    left_line = "" if left is None else f"Доступно: <b>{left} шт</b>\n"
+    in_cart = cart_qty(cart_of(data), v["article"])
+    left_line = ""
+    if left is not None:
+        left_line = f"Доступно: <b>{left} шт</b>\n"
+        if in_cart:
+            left_line += f"У кошику вже: {in_cart} шт\n"
     await _send(target,
                 f"🌲 <b>{catalog.product_name(_uid(target), v)}</b> — "
                 f"{catalog.size_label(v)}\n"
@@ -268,49 +365,88 @@ def _address_line(data) -> str:
     return f"🏢 {data['city']['name']}, {data['warehouse']['name']}"
 
 
-def _not_enough_text(left: int, qty: int) -> str:
+def _not_enough_text(left: int, qty: int, in_cart: int = 0) -> str:
+    cart_line = (f"\nУ кошику вже {in_cart} шт цієї позиції."
+                 if in_cart else "")
     return ("⚠️ <b>Стільки немає в наявності</b>\n\n"
             f"Ви обрали {qty} шт, а за вашим передзамовленням вільно "
-            f"{left} шт.\n\nЗмініть кількість (кнопка «Назад») або "
+            f"{left} шт.{cart_line}\n\nЗменшіть кількість або "
             "напишіть менеджеру.")
+
+
+async def cart_lines(user_id, cart) -> list[str]:
+    """Позиції для екрана підтвердження — назвами очима дропшипера."""
+    out = []
+    for it in cart:
+        v = catalog.by_article(it["article"])
+        price = f"{cart_price(user_id, it):,}".replace(",", " ")
+        line = (f"🌲 {catalog.product_name(user_id, v)} — "
+                f"{catalog.size_label(v)}\n"
+                f"    <code>{it['article']}</code> × {it['qty']} = {price} грн")
+        left = await stock.available(user_id, it["article"])
+        if left is not None:
+            line += f" (доступно {left})"
+        out.append(line)
+    return out
+
+
+async def cart_shortage(user_id, cart) -> list[dict]:
+    """Позиції, яких не вистачає прямо зараз: [{article, available, requested}]."""
+    short = []
+    for it in cart:
+        left = await stock.available(user_id, it["article"])
+        if left is not None and int(it["qty"]) > left:
+            short.append({"article": it["article"], "available": left,
+                          "requested": int(it["qty"])})
+    return short
 
 
 async def show_confirm(target, state: FSMContext):
     data = await state.get_data()
-    item = catalog.by_article(data["article"])
-    qty = data.get("qty", 1)
-    total = f"{catalog.drop_price(item, _uid(target)) * qty:,.0f}".replace(",", " ")
-    left = await stock.available(_uid(target), item["article"])
+    uid = _uid(target)
+    cart = cart_of(data)
     await state.set_state(Order.confirm)
-    if left is not None and qty > left:
-        await _send(target, _not_enough_text(left, qty),
-                    reply_markup=kb.confirm_kb())
+    if not cart:
+        await show_category(target, state)
         return
-    left_line = "" if left is None else f"📦 Доступно: {left} шт\n"
+
+    short = await cart_shortage(uid, cart)
+    if short:
+        await _send(target, stock.not_enough_text(short),
+                    reply_markup=kb.cart_kb(
+                        [{"idx": i, "label": f"{c['article']} × {c['qty']}"}
+                         for i, c in enumerate(cart)]))
+        return
+
+    total = f"{cart_total(uid, cart):,}".replace(",", " ")
+    lines = ["📋 <b>Перевірте замовлення</b>\n"]
+    lines += await cart_lines(uid, cart)
+    tail = ("\nКожна позиція їде окремою накладною."
+            if len(cart) > 1 else "")
     await _send(target,
-                "📋 <b>Перевірте замовлення</b>\n\n"
-                f"🌲 {catalog.product_name(_uid(target), item)} — "
-                f"{catalog.size_label(item)}\n"
-                f"{left_line}"
-                f"Артикул: <code>{item['article']}</code> × {qty}\n"
-                f"💰 Дроп-ціна: {total} грн\n"
+                "\n".join(lines) +
+                f"\n\n💰 <b>Разом: {total} грн</b>\n"
                 f"{_payment_lines(data)}\n\n"
                 f"👤 {data['fio']}\n"
                 f"📞 {data['phone']}\n"
-                f"{_address_line(data)}\n\n"
+                f"{_address_line(data)}"
+                f"{tail}\n\n"
                 "Все вірно?",
                 reply_markup=kb.confirm_kb())
 
 
 async def show_payment_proof(target, state: FSMContext):
     data = await state.get_data()
-    item = catalog.by_article(data["article"])
-    qty = data.get("qty", 1)
-    due = payment.due_amount(int(catalog.drop_price(item, _uid(target)) * qty),
-                             data.get("cod_amount"))
+    uid = _uid(target)
+    cart = cart_of(data)
+    due = payment.due_amount(cart_total(uid, cart), data.get("cod_amount"))
     await state.update_data(due_amount=due)
     await state.set_state(Order.payment_proof)
-    hint = f"{catalog.product_name(_uid(target), item)} {catalog.size_label(item)}"
+    if len(cart) == 1:
+        v = catalog.by_article(cart[0]["article"])
+        hint = f"{catalog.product_name(uid, v)} {catalog.size_label(v)}"
+    else:
+        hint = f"замовлення з {len(cart)} позицій"
     await _send(target, payment.details_text(due, hint),
                 reply_markup=_skip_back_kb("payment_proof", "proof:later",
                                            "⏭ Надішлю чек пізніше"))
@@ -318,7 +454,7 @@ async def show_payment_proof(target, state: FSMContext):
 
 SHOW = {
     "category": show_category, "model": show_model, "variant": show_variant,
-    "qty": show_qty, "payment": show_payment, "sale_price": show_sale_price,
+    "qty": show_qty, "cart": show_cart, "payment": show_payment, "sale_price": show_sale_price,
     "prepaid": show_prepaid, "lname": show_lname, "fname": show_fname,
     "mname": show_mname, "phone": show_phone, "city": show_city,
     "city_pick": show_city_pick, "delivery": show_delivery,
@@ -403,8 +539,26 @@ async def pick_variant(cb: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("qty:"), Order.qty)
 async def pick_qty(cb: CallbackQuery, state: FSMContext):
-    await state.update_data(qty=int(cb.data.split(":")[1]))
-    await show_payment(cb, state)
+    qty = int(cb.data.split(":")[1])
+    data = await state.get_data()
+    article = data["article"]
+    cart = cart_of(data)
+
+    # залишок перевіряємо разом із тим, що вже лежить у кошику: інакше дві
+    # порції по 10 обійшли б ліміт у 15
+    left = await stock.available(cb.from_user.id, article)
+    already = cart_qty(cart, article)
+    if left is not None and already + qty > left:
+        await cb.answer()
+        await cb.message.edit_text(
+            _not_enough_text(left, already + qty, already),
+            reply_markup=kb.cart_kb(
+                [{"idx": i, "label": f"{c['article']} × {c['qty']}"}
+                 for i, c in enumerate(cart)]) if cart else kb.main_menu())
+        return
+
+    await state.update_data(cart=cart_add(cart, article, qty))
+    await show_cart(cb, state)
     await cb.answer()
 
 
@@ -676,14 +830,13 @@ async def skip_flat(cb: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "confirm:yes", Order.confirm)
 async def confirm_order(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    item = catalog.by_article(data["article"])
-    qty = data.get("qty", 1)
-    left = await stock.available(cb.from_user.id, item["article"])
-    if left is not None and qty > left:
-        await cb.message.edit_text(_not_enough_text(left, qty))
+    cart = cart_of(data)
+    short = await cart_shortage(cb.from_user.id, cart)
+    if short:
+        await cb.message.edit_text(stock.not_enough_text(short))
         await cb.answer()
         return
-    due = payment.due_amount(int(catalog.drop_price(item, cb.from_user.id) * qty),
+    due = payment.due_amount(cart_total(cb.from_user.id, cart),
                              data.get("cod_amount"))
     if due > 0:
         # частина або вся сума йде вам на рахунок — просимо скрін чека
@@ -724,21 +877,18 @@ async def _finalize(target, state: FSMContext, *, proof_file_id, create_ttn: boo
 async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
                           create_ttn: bool):
     data = await state.get_data()
-    item = catalog.by_article(data["article"])
-    qty = data.get("qty", 1)
     user = target.from_user
-    price = catalog.drop_price(item, user.id)
+    cart = cart_of(data)
+    if not cart:
+        await show_category(target, state)
+        return
     to_door = bool(data.get("to_door"))
-    order = orders.new_order(
+
+    common = dict(
         order_no=storage.next_order_no(),
         source="telegram",
         dropshipper_id=user.id,
         dropshipper=f"@{user.username}" if user.username else user.full_name,
-        article=item["article"],
-        product=item["model_ua"],
-        size=catalog.size_label(item),
-        qty=qty,
-        price_drop=int(price * qty),
         payment=("часткова передплата" if data["payment"] == "часткова"
                  else data["payment"]),
         sale_price=data.get("sale_price") or "",
@@ -754,100 +904,259 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
         payment_proof=("надіслано" if proof_file_id else
                        ("очікується" if data.get("due_amount") else "не потрібен")),
     )
+
+    items = []
+    for it in cart:
+        v = catalog.by_article(it["article"])
+        qty = int(it["qty"])
+        items.append({
+            "article": v["article"],          # оригінальний рядок прайсу
+            "product": v["model_ua"],
+            "size": catalog.size_label(v),
+            "qty": qty,
+            "price_drop": int(catalog.drop_price(v, user.id) * qty),
+        })
+    rows = orders.new_rows(items, **common)
     if not create_ttn:
-        order["status"] = "очікує оплати"
-    await state.clear()
+        for r in rows:
+            r["status"] = "очікує оплати"
+
     if isinstance(target, CallbackQuery):
         await target.message.edit_text("⏳ Оформлюю замовлення…")
         out = target.message
     else:
         out = await target.answer("⏳ Оформлюю замовлення…")
 
-    # Резерв ДО створення ТТН: накладна на товар, якого немає, — гірше,
-    # ніж незавершене замовлення. Позиції без рядка залишків (C5) не резервуємо.
-    if await stock.available(user.id, item["article"]) is not None:
-        res_data, res_err = await stock.reserve(user.id, item["article"], qty)
+    # ---- резерв УСІХ позицій до першої накладної, «все або нічого» ----
+    to_reserve = []
+    for it in items:
+        if await stock.available(user.id, it["article"]) is not None:
+            to_reserve.append({"article": it["article"], "qty": it["qty"]})
+    if to_reserve:
+        res, res_err = await stock.reserve_many(user.id, to_reserve)
         if res_err:
-            left_now = (res_data or {}).get("available")
-            await out.edit_text(
-                "❌ <b>Замовлення не оформлено</b>\n\n"
-                + stock.error_text(res_err, left_now)
-                + "\n\nНакладну не створювали, у таблицю нічого не записали.")
-            if config.ADMIN_CHAT_ID:
-                try:
-                    await out.bot.send_message(
-                        config.ADMIN_CHAT_ID,
-                        f"⚠️ Резерв не пройшов: {order['article']} × {qty} "
-                        f"для {order['dropshipper']} — {res_err}")
-                except Exception:  # noqa: BLE001
-                    pass
+            missing = (res or {}).get("items") or []
+            text = (stock.not_enough_text(missing) if res_err == "not enough"
+                    else "❌ <b>Замовлення не оформлено</b>\n\n"
+                         + stock.error_text(res_err))
+            await out.edit_text(text)
+            await _tell_admin(out.bot,
+                              f"⚠️ Резерв не пройшов (замовлення №"
+                              f"{common['order_no']}, {common['dropshipper']}): "
+                              f"{res_err}")
             return
 
-    ttn_note = ""
+    # ---- по накладній на позицію ----
+    created, failed = [], []
     if config.NP_AUTO_TTN and create_ttn:
+        created, failed = await _create_ttns(rows, data, user, to_door)
+
+    if failed and created:
+        # частина накладних уже існує — рішення за дропшипером
+        await state.set_state(Order.partial_ttn)
+        await state.update_data(
+            partial={"rows": rows, "created": created, "failed": failed,
+                     "reserved": to_reserve, "proof": list(proof_file_id or []),
+                     "create_ttn": create_ttn,
+                     "address": _address_line(data)})
+        await out.edit_text(_partial_text(created, failed),
+                            reply_markup=kb.partial_ttn_kb())
+        await _tell_admin(out.bot,
+                          f"⚠️ Замовлення №{common['order_no']} "
+                          f"({common['dropshipper']}): створено "
+                          f"{len(created)} накладних із {len(rows)}. "
+                          f"Не вийшло: "
+                          + ", ".join(f["article"] for f in failed)
+                          + ". Чекаємо рішення дропшипера.")
+        return
+
+    await state.clear()
+    await _record_order(out, user, rows, _address_line(data), proof_file_id,
+                        create_ttn)
+
+
+async def _create_ttns(rows, data, user, to_door: bool):
+    """Створити накладну на кожну позицію. Повертає (створені, невдалі).
+
+    Контрагента й адресу створюємо один раз на все замовлення. Зупиняємось на
+    першій невдачі: решту позицій не чіпаємо, щоб не плодити накладні, які,
+    можливо, доведеться видаляти.
+    """
+    created, failed = [], []
+    recipient = None
+    address_ref = ""
+    total = sum(int(r["price_drop"] or 0) for r in rows) or 1
+    cod_total = int(data.get("cod_amount") or 0)
+    cod_left = cod_total
+
+    for idx, row in enumerate(rows):
+        item = catalog.by_article(row["article"])
+        qty = int(row["qty"])
+        # «При отриманні» ділимо між накладними пропорційно вартості позиції,
+        # залишок від округлення кладемо на останню
+        if cod_total:
+            share = (cod_total - cod_left if idx == len(rows) - 1
+                     else int(cod_total * int(row["price_drop"]) / total))
+            cod_item = cod_left if idx == len(rows) - 1 else share
+            cod_left -= cod_item
+        else:
+            cod_item = 0
         try:
-            desc = catalog.ttn_description(item, user.id)
+            if recipient is None:
+                recipient = await np.create_recipient(data["fio"], data["phone"])
+                if to_door:
+                    address_ref = await np.create_address(
+                        recipient[0], (data.get("street") or {}).get("ref", ""),
+                        data.get("building", ""), data.get("flat", ""))
             res = await np.create_ttn(
                 recipient_city_ref=data["city"]["ref"],
                 recipient_warehouse_ref=(data.get("warehouse") or {}).get("ref", ""),
                 fio=data["fio"], phone=data["phone"],
-                description=desc, cost=price * qty,
+                description=catalog.ttn_description(item, user.id),
+                cost=int(row["price_drop"]),
                 weight=(item["weight_kg"] or 5) * qty,
                 volume=(item.get("volume_m3") or 0) * qty or None,
                 seats=qty,
-                cod_amount=data.get("cod_amount") or 0,
+                cod_amount=cod_item,
                 to_door=to_door,
                 street_ref=(data.get("street") or {}).get("ref", ""),
                 building=data.get("building", ""),
                 flat=data.get("flat", ""),
+                recipient=recipient,
+                address_ref_ready=address_ref,
             )
-            order["ttn"] = res["ttn"]
-            order["status"] = "ТТН створено"
-            ttn_note = (f"\n📦 <b>ТТН: <code>{res['ttn']}</code></b>"
-                        + (f"\n🗓 Орієнтовна доставка: {res['estimated_date']}"
-                           if res.get("estimated_date") else ""))
+            row["ttn"] = res["ttn"]
+            row["status"] = "ТТН створено"
+            created.append({"article": row["article"], "ttn": res["ttn"],
+                            "ref": res.get("ref", ""),
+                            "estimated_date": res.get("estimated_date", "")})
         except Exception as e:  # noqa: BLE001
-            order["status"] = "ТТН НЕ створено"
-            order["comment"] = f"Помилка ТТН: {e}"
-            ttn_note = ("\n⚠️ ТТН не вдалося створити автоматично — "
-                        "менеджер оформить вручну.")
+            row["status"] = "ТТН НЕ створено"
+            row["comment"] = f"Помилка ТТН: {e}"
+            failed.append({"article": row["article"], "reason": str(e)})
+            break
+    # позиції після невдалої лишаються без накладної
+    for row in rows:
+        if not row.get("ttn") and row["status"] not in ("ТТН НЕ створено",
+                                                        "очікує оплати"):
+            row["status"] = "ТТН НЕ створено"
+    return created, failed
 
-    orders.save_csv(order)
-    orders.save_local(order)
-    sheet_err = await orders.send_to_sheet(order)
+
+def _partial_text(created, failed) -> str:
+    lines = ["⚠️ <b>Накладні створено не на всі позиції</b>\n",
+             "Готові:"]
+    for c in created:
+        lines.append(f"  ✅ <code>{c['article']}</code> — ТТН "
+                     f"<code>{c['ttn']}</code>")
+    lines.append("\nНе вийшло:")
+    for f in failed:
+        lines.append(f"  ❌ <code>{f['article']}</code> — {f['reason']}"[:200])
+    lines.append("\nЩо робимо? Поки ви обираєте, товар лишається "
+                 "зарезервованим за вами.")
+    return "\n".join(lines)
+
+
+async def _tell_admin(bot, text: str):
+    if not config.ADMIN_CHAT_ID:
+        return
+    try:
+        await bot.send_message(config.ADMIN_CHAT_ID, text)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def _record_order(out, user, rows, address_line: str, proof_file_id,
+                        create_ttn: bool):
+    """Записати замовлення (CSV, локально, таблиця) і показати підсумок."""
+    for row in rows:
+        orders.save_csv(row)
+        orders.save_local(row)
+    sheet_err = await orders.send_to_sheet_rows(rows)
     if sheet_err:
-        order["comment"] = (order.get("comment", "") + f" | Sheet: {sheet_err}").strip(" |")
+        for row in rows:
+            row["comment"] = (row.get("comment", "")
+                              + f" | Sheet: {sheet_err}").strip(" |")
 
     bot = out.bot
     if config.ADMIN_CHAT_ID:
         try:
-            text = orders.admin_text(order)
+            text = orders.admin_text_multi(rows)
             if proof_file_id:
                 kind, fid = proof_file_id
                 if kind == "photo":
                     await bot.send_photo(config.ADMIN_CHAT_ID, fid, caption=text)
                 else:
-                    await bot.send_document(config.ADMIN_CHAT_ID, fid, caption=text)
+                    await bot.send_document(config.ADMIN_CHAT_ID, fid,
+                                            caption=text)
             else:
                 await bot.send_message(config.ADMIN_CHAT_ID, text)
         except Exception:  # noqa: BLE001
             pass
 
+    head = rows[0]
     if not create_ttn:
         tail = ("\n\n💳 Замовлення збережено зі статусом <b>«очікує оплати»</b>. "
-                f"Переказ на {order['due_amount']} грн і скрін чека — "
+                f"Переказ на {head['due_amount']} грн і скрін чека — "
                 "менеджеру в цей чат. ТТН створимо після оплати.")
     elif proof_file_id:
         tail = "\n\n📸 Чек передано менеджеру. Дякуємо! 🎄"
     else:
         tail = "\n\nДякуємо! 🎄"
 
-    await out.edit_text(
-        f"✅ <b>Замовлення №{order['order_no']} прийнято!</b>\n\n"
-        f"🌲 {catalog.product_name(user.id, item)} — {order['size']} × {qty}\n"
-        f"👤 {order['recipient_fio']}\n"
-        f"{_address_line(data)}\n"
-        f"💳 {order['payment']}"
-        f"{ttn_note}"
-        f"{tail}",
-        reply_markup=kb.main_menu())
+    lines = [f"✅ <b>Замовлення №{head['order_no']} прийнято!</b>\n"]
+    for row in rows:
+        item = catalog.by_article(row["article"])
+        line = (f"🌲 {catalog.product_name(user.id, item)} — "
+                f"{row['size']} × {row['qty']}")
+        if row.get("ttn"):
+            line += f"\n    📦 ТТН: <code>{row['ttn']}</code>"
+        elif row["status"] == "ТТН НЕ створено":
+            line += "\n    ⚠️ накладну оформить менеджер"
+        lines.append(line)
+    lines += ["", f"👤 {head['recipient_fio']}", address_line,
+              f"💳 {head['payment']}"]
+    await out.edit_text("\n".join(lines) + tail, reply_markup=kb.main_menu())
+
+
+@router.callback_query(F.data == "partial:keep", Order.partial_ttn)
+async def partial_keep(cb: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    p = data.get("partial") or {}
+    await state.clear()
+    proof = tuple(p.get("proof") or ()) or None
+    await _record_order(cb.message, cb.from_user, p["rows"],
+                        p.get("address", ""), proof, p.get("create_ttn", True))
+    await cb.answer()
+
+
+@router.callback_query(F.data == "partial:cancel", Order.partial_ttn)
+async def partial_cancel(cb: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    p = data.get("partial") or {}
+    await state.clear()
+    await cb.message.edit_text("⏳ Скасовую замовлення…")
+
+    deleted, kept = [], []
+    for c in p.get("created") or []:
+        if await np.delete_ttn(c.get("ref", "")):
+            deleted.append(c)
+        else:
+            kept.append(c)
+    if p.get("reserved"):
+        await stock.release_many(cb.from_user.id, p["reserved"])
+
+    text = ["✖️ <b>Замовлення скасовано</b>\n",
+            "Резерв знято, у таблицю нічого не записали."]
+    if deleted:
+        text.append(f"Видалено накладних: {len(deleted)}.")
+    if kept:
+        text.append("⚠️ Не вдалося видалити: "
+                    + ", ".join(f"<code>{c['ttn']}</code>" for c in kept)
+                    + " — менеджер скасує вручну.")
+    await cb.message.edit_text("\n".join(text), reply_markup=kb.main_menu())
+    await _tell_admin(cb.message.bot,
+                      "✖️ Дропшипер скасував замовлення з частково створеними "
+                      f"накладними. Видалено: {len(deleted)}, лишилось: "
+                      + (", ".join(c["ttn"] for c in kept) or "—"))
+    await cb.answer()

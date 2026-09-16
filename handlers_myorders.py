@@ -29,6 +29,54 @@ def _product_name(user_id: int | None, o: dict) -> str:
     return aliases.name_by_article(user_id, article, o.get("product", ""))
 
 
+def group_orders(rows: list[dict]) -> list[list[dict]]:
+    """Рядки → замовлення: кілька позицій з одним номером ідуть разом.
+
+    Старе замовлення з одного рядка стає групою з одного елемента, тож
+    показується точно як раніше.
+    """
+    groups: dict[str, list] = {}
+    order: list[str] = []
+    for r in rows:
+        key = str(r.get("order_no") or "").strip() or f"_{len(order)}"
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(r)
+    return [groups[k] for k in order]
+
+
+def _fmt_group(rows: list[dict], user_id: int | None = None) -> str:
+    """Замовлення цілком: спільна шапка, далі позиції з їхніми ТТН."""
+    if len(rows) == 1:
+        return _fmt(rows[0], user_id)
+    head_row = rows[0]
+    icon = STATUS_ICON.get(str(head_row.get("status", "")).strip(), "•")
+    lines = [f"{icon} <b>№{head_row.get('order_no', '?')}</b> · "
+             f"{head_row.get('created_at', '')} · {len(rows)} позиції"]
+    for r in rows:
+        line = f"🌲 {_product_name(user_id, r)} — {r.get('size', '')}"
+        if str(r.get("qty", "1")) not in ("", "1"):
+            line += f" × {r['qty']}"
+        if r.get("ttn"):
+            line += (f"\n    📦 <code>{r['ttn']}</code>"
+                     f" · {r.get('np_status') or r.get('status') or ''}")
+        elif r.get("status"):
+            line += f"\n    {r['status']}"
+        lines.append(line)
+    lines += [f"👤 {head_row.get('recipient_fio', '')} · "
+              f"{head_row.get('recipient_phone', '')}",
+              f"📍 {head_row.get('city', '')}, {head_row.get('warehouse', '')}"]
+    pay = f"💳 {head_row.get('payment', '')}"
+    if head_row.get("cod_amount"):
+        pay += f" · при отриманні {head_row['cod_amount']} грн"
+    lines.append(pay)
+    if head_row.get("due_amount"):
+        mark = "✅" if head_row.get("payment_proof") == "надіслано" else "⏳"
+        lines.append(f"🏦 На рахунок: {head_row['due_amount']} грн {mark}")
+    return "\n".join(lines)
+
+
 def _fmt(o: dict, user_id: int | None = None) -> str:
     icon = STATUS_ICON.get(str(o.get("status", "")).strip(), "•")
     name = _product_name(user_id, o)
@@ -55,16 +103,23 @@ def _fmt(o: dict, user_id: int | None = None) -> str:
 
 
 async def _load_orders(user_id: int, limit: int = 10):
-    """Спершу таблиця (виживає деплої), потім локальний журнал."""
+    """Спершу таблиця (виживає деплої), потім локальний журнал.
+
+    Повертає ГРУПИ рядків: замовлення з трьох позицій — це три рядки, які
+    мають показатися як одне замовлення й зайняти один слот із limit.
+    Тому з таблиці беремо із запасом і ріжемо вже після групування.
+    """
     import stock
     await stock.rows_for(user_id)          # щоб були персональні назви
+    err = None
+    rows = None
     if sheets_store.enabled():
-        rows, err = await sheets_store.fetch_orders(user_id, limit)
+        rows, err = await sheets_store.fetch_orders(user_id, limit * 5)
         if rows is not None:
-            return rows, None
-        local = orders.list_for_user(user_id, limit)
-        return local, err
-    return orders.list_for_user(user_id, limit), None
+            err = None
+    if rows is None:
+        rows = orders.list_for_user(user_id, limit * 5)
+    return group_orders(rows)[:limit], err
 
 
 @router.callback_query(F.data == "my:orders")
@@ -77,7 +132,7 @@ async def cb_my_orders(cb: CallbackQuery):
             text += f"\n\n<i>⚠️ {err}</i>"
         await cb.message.edit_text(text, reply_markup=kb.main_menu())
         return
-    blocks = "\n\n".join(_fmt(o, cb.from_user.id) for o in rows)
+    blocks = "\n\n".join(_fmt_group(g, cb.from_user.id) for g in rows)
     text = f"📋 <b>Мої замовлення</b> (останні {len(rows)})\n\n{blocks}"
     if err:
         text += ("\n\n<i>⚠️ Журнал у таблиці недоступний, показано локальні дані.\n"
@@ -92,7 +147,7 @@ async def cmd_my_orders(msg: Message):
     if not rows:
         await msg.answer("Поки що замовлень немає." + (f"\n{err}" if err else ""))
         return
-    blocks = "\n\n".join(_fmt(o, msg.from_user.id) for o in rows)
+    blocks = "\n\n".join(_fmt_group(g, msg.from_user.id) for g in rows)
     await msg.answer(f"📋 <b>Мої замовлення</b>\n\n{blocks}"[:4000],
                      disable_web_page_preview=True)
 
@@ -108,6 +163,7 @@ async def cmd_all_orders(msg: Message):
     if not rows:
         await msg.answer("Замовлень не знайдено." + (f"\n⚠️ {err}" if err else ""))
         return
-    blocks = "\n\n".join(_fmt(o) + f"\n👔 {o.get('dropshipper', '')}" for o in rows)
+    blocks = "\n\n".join(_fmt_group(g) + f"\n👔 {g[0].get('dropshipper', '')}"
+                          for g in group_orders(rows))
     await msg.answer(f"📋 <b>Останні замовлення</b>\n\n{blocks}"[:4000],
                      disable_web_page_preview=True)
