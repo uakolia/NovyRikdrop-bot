@@ -55,7 +55,7 @@ def variants_kb(cat_idx: int, model_idx: int, user_id: int | None = None):
     model = catalog.models(cats[cat_idx])[model_idx]
     rows = []
     for i, v in enumerate(catalog.variants(model)):
-        price = catalog.drop_price(v)
+        price = catalog.drop_price(v, user_id)
         label = f"{catalog.size_label(v)} — {price:,.0f} грн".replace(",", " ")
         rows.append([InlineKeyboardButton(text=label, callback_data=f"var:{i}")])
     rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back:variant"),

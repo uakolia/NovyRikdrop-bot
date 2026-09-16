@@ -9,6 +9,7 @@
   GET  ?what=orders&id=<tg_id>     — замовлення дропшипера
   GET  ?what=maxorder              — максимальний номер замовлення
   GET  ?what=aliases               — власні назви товарів дропшиперів
+  GET  ?what=stock                 — «Залишки дропшиперів» (лише читання)
   POST {type: "alias", ...}        — додати/оновити власну назву
 """
 import json
@@ -156,6 +157,30 @@ async def fetch_aliases():
     if rows is None:
         return None, NEED_UPDATE
     return rows, None
+
+
+async def fetch_stock():
+    """Рядки «Залишків дропшиперів»: [{tg_id, article, name, available, ...}].
+
+    Рядки лише читаємо. Текст обрізаємо з обох боків: у колонці «Персональна
+    назва» трапляється хвостовий пробіл («Українська Люкс 2.5м »), а ця назва
+    йде в опис ТТН на паперовій накладній Нової Пошти.
+
+    Колонку «Дроп-ціна» свідомо не повертаємо: ціни беруться з прайсу за
+    тарифом дропшипера (storage.price_tier), таблиця показує їх для ока.
+    """
+    data, err = await _get({"what": "stock"})
+    if err:
+        return None, err
+    rows = (data or {}).get("rows")
+    if rows is None:
+        return None, NEED_UPDATE
+    out = []
+    for r in rows:
+        clean = {k: (v.strip() if isinstance(v, str) else v) for k, v in r.items()}
+        if clean.get("article"):
+            out.append(clean)
+    return out, None
 
 
 async def push_alias(user_id: int, key: str, name: str):

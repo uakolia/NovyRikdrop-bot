@@ -22,6 +22,7 @@
 var ORDERS_SHEET = "Замовлення";
 var DROPS_SHEET = "Дропшипери";
 var ALIAS_SHEET = "Назви товарів";
+var STOCK_SHEET = "Залишки дропшиперів";
 
 var ORDER_HEADERS = ["№", "Дата", "Джерело", "ID дропшипера", "Дропшипер",
   "Артикул", "Товар", "Розмір", "К-сть", "Дроп-ціна", "Оплата",
@@ -35,7 +36,18 @@ var ORDER_KEYS = ["order_no", "created_at", "source", "dropshipper_id", "dropshi
   "comment", "sale_price", "prepaid", "cod_amount", "delivery",
   "due_amount", "payment_proof"];
 
-var DROP_HEADERS = ["Telegram ID", "Ім'я", "Username", "Статус", "Дата", "Хто схвалив"];
+var DROP_HEADERS = ["Telegram ID", "Ім'я", "Username", "Статус", "Дата", "Хто схвалив",
+  "Тариф"];
+
+// «Тариф» — необов'язкова колонка: drop1/drop2/drop3 (можна писати «Дроп 2»).
+// Порожньо = загальний тариф бота (PRICE_TIER). Заповнюється руками в таблиці,
+// бот її лише читає й ніколи не затирає.
+var DROP_TIER_COL = 7;
+
+// «Залишки дропшиперів» веде менеджер вручну; бот тільки читає.
+// Колонка «Дроп-ціна» — довідкова: ціни бот бере з прайсу за тарифом.
+var STOCK_COLS = { tg_id: 1, dropshipper: 2, article: 3, name: 4, price: 5,
+  allocated: 6, reserved: 7, delivered: 8, available: 9 };
 
 // Власні назви товарів: дропшипер бачить свою назву, у ТТН лишається наша.
 // Ключ — модель («Грандія», діє на всі розміри) або артикул («Cr6G-220»).
@@ -84,6 +96,23 @@ function sheet_(name, headers) {
   return sh;
 }
 
+// Дописати відсутні підписи в шапку (для таблиць, створених до оновлення).
+// Дивимося саме на перший рядок: getLastColumn() показує найширший рядок даних,
+// тож у таблиці з уже заповненим «Тарифом» підпис інакше лишився б порожнім.
+function ensureHeaders_(sh, headers) {
+  if (sh.getLastRow() === 0) return;                 // порожній аркуш — шапку вже поставив sheet_
+  var row = sh.getRange(1, 1, 1, headers.length).getValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    if (String(row[i] || "").trim() === "") {
+      sh.getRange(1, i + 1).setValue(headers[i]).setFontWeight("bold");
+    }
+  }
+}
+
+function trim_(v) {
+  return (v === null || v === undefined) ? "" : String(v).trim();
+}
+
 function doPost(e) {
   var data;
   try {
@@ -97,13 +126,16 @@ function doPost(e) {
 
   if (type === "dropshipper") {
     var sh = sheet_(DROPS_SHEET, DROP_HEADERS);
+    ensureHeaders_(sh, DROP_HEADERS);
     var ids = sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), 1).getValues();
     var row = -1;
     for (var i = 1; i < ids.length; i++) {
       if (String(ids[i][0]) === String(data.tg_id)) { row = i + 1; break; }
     }
+    // тариф проставляє менеджер у таблиці — перезапис рядка його не чіпає
+    var tier = row > 0 ? sh.getRange(row, DROP_TIER_COL).getValue() : "";
     var values = [String(data.tg_id), data.name || "", data.username || "",
-      data.status || "схвалений", new Date(), data.approved_by || ""];
+      data.status || "схвалений", new Date(), data.approved_by || "", tier];
     if (row > 0) {
       sh.getRange(row, 1, 1, values.length).setValues([values]);
     } else {
@@ -153,6 +185,7 @@ function doGet(e) {
 
   if (what === "dropshippers") {
     var sh = sheet_(DROPS_SHEET, DROP_HEADERS);
+    ensureHeaders_(sh, DROP_HEADERS);
     var last = sh.getLastRow();
     var rows = [];
     if (last > 1) {
@@ -160,12 +193,39 @@ function doGet(e) {
       for (var i = 0; i < vals.length; i++) {
         if (!vals[i][0]) continue;
         rows.push({
-          tg_id: String(vals[i][0]), name: vals[i][1], username: vals[i][2],
-          status: vals[i][3] || "схвалений"
+          tg_id: trim_(vals[i][0]), name: vals[i][1], username: vals[i][2],
+          status: vals[i][3] || "схвалений",
+          tier: trim_(vals[i][DROP_TIER_COL - 1])
         });
       }
     }
     return json_({ rows: rows });
+  }
+
+  if (what === "stock") {
+    // аркуш ведуть руками; якщо його ще немає — просто порожній список
+    var ssh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(STOCK_SHEET);
+    var srows = [];
+    if (ssh && ssh.getLastRow() > 1) {
+      var width = Math.max(ssh.getLastColumn(), STOCK_COLS.available);
+      var sv = ssh.getRange(2, 1, ssh.getLastRow() - 1, width).getValues();
+      for (var s = 0; s < sv.length; s++) {
+        var art = trim_(sv[s][STOCK_COLS.article - 1]);
+        if (!art) continue;
+        srows.push({
+          tg_id: trim_(sv[s][STOCK_COLS.tg_id - 1]),
+          dropshipper: trim_(sv[s][STOCK_COLS.dropshipper - 1]),
+          article: art,
+          // назву обрізаємо: вона потрапляє в опис ТТН на паперовій накладній
+          name: trim_(sv[s][STOCK_COLS.name - 1]),
+          allocated: sv[s][STOCK_COLS.allocated - 1],
+          reserved: sv[s][STOCK_COLS.reserved - 1],
+          delivered: sv[s][STOCK_COLS.delivered - 1],
+          available: sv[s][STOCK_COLS.available - 1]
+        });
+      }
+    }
+    return json_({ rows: srows });
   }
 
   if (what === "orders") {
@@ -220,5 +280,5 @@ function doGet(e) {
     return json_({ max: max });
   }
 
-  return json_({ ok: true, hint: "what=dropshippers|orders|aliases|maxorder" });
+  return json_({ ok: true, hint: "what=dropshippers|orders|aliases|maxorder|stock" });
 }

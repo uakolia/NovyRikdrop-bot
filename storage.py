@@ -12,9 +12,29 @@ import config
 USERS_PATH = os.path.join(config.DATA_DIR, "users.json")
 _lock = threading.Lock()
 
-# кеш у пам'яті: {user_id_str: {"name","username"}}
+# кеш у пам'яті: {user_id_str: {"name","username","tier"}}
 _approved_cache: dict[str, dict] = {}
 _synced = False
+
+# допустимі значення колонки «Тариф» в аркуші «Дропшипери»
+TIERS = ("drop1", "drop2", "drop3")
+
+
+def _tier(value) -> str:
+    """«Дроп 2», «drop2», «2» → 'drop2'. Порожнє або сміття → '' (загальний)."""
+    s = str(value or "").strip().lower().replace(" ", "").replace("дроп", "drop")
+    if s in ("1", "2", "3"):
+        s = "drop" + s
+    return s if s in TIERS else ""
+
+
+def price_tier(user_id: int | None = None) -> str:
+    """Тариф дропшипера: власний із таблиці або загальний config.PRICE_TIER."""
+    if user_id is None:
+        return config.PRICE_TIER
+    info = (_approved_cache.get(str(user_id))
+            or _load()["approved"].get(str(user_id)) or {})
+    return info.get("tier") or config.PRICE_TIER
 
 
 def _load():
@@ -66,7 +86,8 @@ async def sync_from_sheet(force: bool = False):
         for r in rows:
             if str(r.get("status", "")).strip().lower().startswith("схвал"):
                 uid = str(r["tg_id"]).strip()
-                info = {"name": r.get("name", ""), "username": r.get("username", "")}
+                info = {"name": r.get("name", ""), "username": r.get("username", ""),
+                        "tier": _tier(r.get("tier"))}
                 _approved_cache[uid] = info
                 d["approved"][uid] = info
         _save(d)
@@ -89,6 +110,7 @@ def approve_local(user_id: int) -> dict:
     with _lock:
         d = _load()
         info = d["pending"].pop(str(user_id), None) or {"name": "", "username": ""}
+        info.setdefault("tier", "")
         d["approved"][str(user_id)] = info
         _save(d)
     _approved_cache[str(user_id)] = info

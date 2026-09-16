@@ -266,7 +266,7 @@ async def show_confirm(target, state: FSMContext):
     data = await state.get_data()
     item = catalog.by_article(data["article"])
     qty = data.get("qty", 1)
-    total = f"{catalog.drop_price(item) * qty:,.0f}".replace(",", " ")
+    total = f"{catalog.drop_price(item, _uid(target)) * qty:,.0f}".replace(",", " ")
     await state.set_state(Order.confirm)
     await _send(target,
                 "📋 <b>Перевірте замовлення</b>\n\n"
@@ -286,7 +286,7 @@ async def show_payment_proof(target, state: FSMContext):
     data = await state.get_data()
     item = catalog.by_article(data["article"])
     qty = data.get("qty", 1)
-    due = payment.due_amount(int(catalog.drop_price(item) * qty),
+    due = payment.due_amount(int(catalog.drop_price(item, _uid(target)) * qty),
                              data.get("cod_amount"))
     await state.update_data(due_amount=due)
     await state.set_state(Order.payment_proof)
@@ -658,7 +658,7 @@ async def confirm_order(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     item = catalog.by_article(data["article"])
     qty = data.get("qty", 1)
-    due = payment.due_amount(int(catalog.drop_price(item) * qty),
+    due = payment.due_amount(int(catalog.drop_price(item, cb.from_user.id) * qty),
                              data.get("cod_amount"))
     if due > 0:
         # частина або вся сума йде вам на рахунок — просимо скрін чека
@@ -694,8 +694,8 @@ async def _finalize(target, state: FSMContext, *, proof_file_id, create_ttn: boo
     data = await state.get_data()
     item = catalog.by_article(data["article"])
     qty = data.get("qty", 1)
-    price = catalog.drop_price(item)
     user = target.from_user
+    price = catalog.drop_price(item, user.id)
     to_door = bool(data.get("to_door"))
     order = orders.new_order(
         order_no=storage.next_order_no(),

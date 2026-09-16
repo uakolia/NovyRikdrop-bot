@@ -10,6 +10,7 @@
 import json
 import os
 
+import article_key
 import config
 
 PATH = os.path.join(config.DATA_DIR, "aliases.json")
@@ -19,7 +20,11 @@ _cache: dict[str, dict[str, str]] = {}
 
 
 def _norm(key: str) -> str:
-    return str(key or "").strip().lower()
+    """Ключ пошуку (артикул або назва моделі) — канонічний, з обох боків.
+
+    Кириличні двійники в артикулах («Cr6сustom-220») інакше не знаходяться.
+    """
+    return article_key.canon(key)
 
 
 def _load_local():

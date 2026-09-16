@@ -9,6 +9,7 @@ from aiohttp import web
 
 import access
 import aliases
+import article_key
 import catalog, config
 import storage
 import handlers_admin as admin
@@ -21,6 +22,34 @@ from webhook import make_app
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("yalynkar")
+
+
+async def check_stock_articles():
+    """Звірити «Залишки дропшиперів» із каталогом і голосно сказати про промахи.
+
+    Мовчазний промах зіставлення — найгірший сценарій: залишок просто не
+    знайдеться, і ніхто цього не помітить. Тому пишемо в лог і артикули без
+    товару, і колізії канонічних ключів (якщо після оновлення прайсу два різні
+    артикули раптом зведуться до одного ключа).
+    """
+    import sheets_store
+    if not sheets_store.enabled():
+        return
+    dupes = article_key.collisions(i["article"] for i in catalog.items())
+    for key, originals in dupes.items():
+        log.error("Колізія ключа %s: %s — різні артикули збігаються після "
+                  "нормалізації, зіставлення ненадійне", key, ", ".join(originals))
+    rows, err = await sheets_store.fetch_stock()
+    if err:
+        log.warning("Залишки дропшиперів не прочитались: %s", err)
+        return
+    missing = [r for r in rows if not catalog.by_article(r.get("article", ""))]
+    for r in missing:
+        log.error("Залишки: артикул %r (%s) не знайдено в каталозі — "
+                  "перевірте прайс і config.PRICELIST_TABS",
+                  r.get("article"), r.get("dropshipper") or r.get("tg_id"))
+    log.info("Залишки дропшиперів: %d рядків, без товару в каталозі: %d",
+             len(rows), len(missing))
 
 
 async def main():
@@ -53,6 +82,7 @@ async def main():
     else:
         log.info("Власних назв товарів: %d", n_alias)
     await storage.init_order_seq()
+    await check_stock_articles()
 
     # HTTP-сервер (health-check для хостингу + вебхук Weblium)
     app = make_app(bot)

@@ -5,6 +5,7 @@ import re
 
 import aiohttp
 
+import article_key
 import config
 from catalog_parser import parse_csv_text, parse_rows
 
@@ -73,14 +74,31 @@ def variants(model_ua: str):
 
 
 def by_article(article: str):
+    """Товар за артикулом. Спершу точний збіг, далі — канонічний ключ.
+
+    Канонічний ключ потрібен через кириличні двійники в прайсі
+    («Cr6сustom-220» з кириличною с) — див. article_key.
+    """
     for i in items():
         if i["article"] == article:
+            return i
+    key = article_key.canon(article)
+    if not key:
+        return None
+    for i in items():
+        if article_key.canon(i["article"]) == key:
             return i
     return None
 
 
-def drop_price(item) -> float:
-    tier = "price_" + config.PRICE_TIER
+def drop_price(item, user_id: int | None = None) -> float:
+    """Дроп-ціна за тарифом цього дропшипера (у кого свого немає — загальний).
+
+    Колонка «Дроп-ціна» в «Залишках дропшиперів» — лише для показу в таблиці,
+    ціни звідти не беремо: джерело правди — прайс плюс тариф.
+    """
+    import storage
+    tier = "price_" + storage.price_tier(user_id)
     return item.get(tier) or item.get("price_drop3") or item.get("price_drop2") or 0
 
 
