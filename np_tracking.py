@@ -6,6 +6,11 @@ getStatusDocuments щоразу віддає поточний стан; якщо
 «Отримано» і за добу зіпсувало б залишки. Тому кожен рядок порівнюємо зі
 «Статусом Nova Poshta», збереженим у таблиці: не змінився — нічого не робимо.
 
+Одна накладна — одне замовлення, але позицій у ньому може бути кілька, і в
+таблиці кожна позиція має свій рядок із тією самою ТТН. Тому рядки групуємо за
+ТТН і на переході обробляємо КОЖНУ позицію з її власною кількістю: інакше
+замовлення на дві ялинки списало б із залишків лише першу.
+
 Що робимо на переходах (лише коли КАТЕГОРІЯ статусу змінилася):
   → отримано              stock.receive()  (резерв стає видачею)
   → відмова / повернення  повідомляємо адміну, резерв НЕ чіпаємо — рішення за людиною
@@ -180,32 +185,41 @@ async def poll_once(bot=None):
     if not rows:
         return 0, None
 
-    statuses = await fetch_statuses([{"ttn": r["ttn"], "phone": r.get("phone", "")}
-                                     for r in rows if r.get("ttn")])
-    updates = []
+    # рядки однієї накладної — це позиції одного замовлення
+    by_ttn: dict[str, list] = {}
     for r in rows:
-        fresh = statuses.get(str(r.get("ttn") or "").strip())
+        ttn = str(r.get("ttn") or "").strip()
+        if ttn:
+            by_ttn.setdefault(ttn, []).append(r)
+
+    statuses = await fetch_statuses(
+        [{"ttn": ttn, "phone": group[0].get("phone", "")}
+         for ttn, group in by_ttn.items()])
+    updates = []
+    for ttn, group in by_ttn.items():
+        fresh = statuses.get(ttn)
         if not fresh:
             continue
-        was_text = str(r.get("np_status") or "").strip()
+        head = group[0]
+        was_text = str(head.get("np_status") or "").strip()
         changed = fresh["status"] != was_text
         was, now = category_of_text(was_text), category(fresh["code"])
 
         if now == "missing":
             # тут важливо й те, що статус НЕ змінився: саме повтор коду 3
             # підтверджує, що номера справді немає
-            mark = await _handle_missing(bot, r, fresh, stock, was, was_text)
+            mark = await _handle_missing(bot, group, fresh, stock, was, was_text)
             if changed or mark:
-                updates.append({"ttn": r["ttn"],
+                updates.append({"ttn": ttn,
                                 "np_status": fresh["status"] + mark})
             continue
 
         if not changed:
             continue                                   # нічого не змінилося
-        updates.append({"ttn": r["ttn"], "np_status": fresh["status"]})
+        updates.append({"ttn": ttn, "np_status": fresh["status"]})
         if was == now:
             continue                                   # рух усередині категорії
-        await _apply_transition(bot, r, now, fresh, stock)
+        await _apply_transition(bot, group, now, fresh, stock)
 
     if not updates:
         return 0, None
@@ -215,14 +229,19 @@ async def poll_once(bot=None):
     return n, None
 
 
-async def _handle_missing(bot, row, fresh: dict, stock, was: str, was_text: str):
+async def _handle_missing(bot, group: list, fresh: dict, stock, was: str,
+                          was_text: str):
     """Код 3. Повертає позначку для статусу ("" — резерв не чіпали).
 
     Резерв знімаємо, лише якщо НП віддала «номер не знайдено» вже вдруге
     поспіль І замовленню більше доби. Інакше це, найімовірніше, свіжа накладна,
     яку НП ще не проіндексувала, і товар ось-ось поїде.
     """
-    ttn = row.get("ttn")
+    head = group[0]
+    ttn = head.get("ttn")
+    items = [{"article": r.get("article"), "qty": _qty(r)}
+             for r in group if r.get("article")]
+    listing = ", ".join(f"{i['article']} × {i['qty']}" for i in items)
     if RELEASED_MARK.strip() in (was_text or ""):
         return ""                                    # резерв уже знімали
     if was != "missing":
@@ -232,36 +251,34 @@ async def _handle_missing(bot, row, fresh: dict, stock, was: str, was_text: str)
             bot,
             "❓ <b>НП не знає накладної</b>\n"
             f"ТТН <code>{ttn}</code> — {fresh['status']}\n"
-            f"Замовлення №{row.get('order_no', '?')}, "
-            f"{row.get('article')} × {_qty(row)}\n"
+            f"Замовлення №{head.get('order_no', '?')}, {listing}\n"
             "Резерв поки лишили: свіжу накладну НП іноді ще не бачить. "
             "Якщо номер не з'явиться до наступної перевірки і замовленню буде "
             "понад добу — резерв знімемо автоматично.", ttn)
         return ""
 
-    age = order_age(row.get("created_at"))
+    age = order_age(head.get("created_at"))
     if age is None:
         log.warning("ТТН %s: номера немає вдруге, але дату замовлення (%r) не "
-                    "розпізнано — резерв не чіпаємо", ttn, row.get("created_at"))
+                    "розпізнано — резерв не чіпаємо", ttn, head.get("created_at"))
         return ""
     if age < MISSING_MIN_AGE:
         log.info("ТТН %s: номера немає вдруге, але замовленню лише %s — чекаємо",
                  ttn, str(age).split(".")[0])
         return ""
-    if not (row.get("tg_id") and row.get("article")):
+    if not (head.get("tg_id") and items):
         return ""
-    qty = _qty(row)
-    _, err = await stock.release(row["tg_id"], row["article"], qty)
+    _, err = await stock.release_many(head["tg_id"], items)
     log.warning("ТТН %s: номера немає вдруге й замовленню понад добу — "
-                "резерв %s × %s знято%s", ttn, row.get("article"), qty,
+                "резерв %s знято%s", ttn, listing,
                 f" (не вдалось: {err})" if err else "")
     if err:
         return ""
     await _tell_admin(
         bot,
         "🔓 <b>Резерв знято, стеження припинено</b>\n"
-        f"Замовлення №{row.get('order_no', '?')}, ТТН <code>{ttn}</code>\n"
-        f"{row.get('article')} × {qty}\n\n"
+        f"Замовлення №{head.get('order_no', '?')}, ТТН <code>{ttn}</code>\n"
+        f"{listing}\n\n"
         "Нова Пошта не знає цього номера вже вдруге поспіль, а замовленню "
         "понад добу. Резерв повернуто в залишки.\n\n"
         "⚠️ Бот <b>більше не перевіряє цю накладну</b>. Якщо посилка все ж "
@@ -287,33 +304,41 @@ def _qty(row) -> int:
         return 1
 
 
-async def _apply_transition(bot, row, now: str, fresh: dict, stock):
-    """Дія на перехід у нову категорію. Помилки не зупиняють решту рядків."""
-    ttn = row.get("ttn")
-    tg_id = row.get("tg_id")
-    article = row.get("article")
-    qty = _qty(row)
-    if not (tg_id and article):
+async def _apply_transition(bot, group: list, now: str, fresh: dict, stock):
+    """Дія на перехід у нову категорію — для КОЖНОЇ позиції замовлення.
+
+    Одна накладна може везти кілька позицій, тож і «отримано», і «видалено»
+    треба провести по всіх рядках із їхніми кількостями.
+    """
+    head = group[0]
+    ttn = head.get("ttn")
+    tg_id = head.get("tg_id")
+    items = [{"article": r.get("article"), "qty": _qty(r)}
+             for r in group if r.get("article")]
+    if not (tg_id and items):
         return
+    listing = ", ".join(f"{i['article']} × {i['qty']}" for i in items)
     try:
         if now == "received":
-            _, err = await stock.receive(tg_id, article, qty)
-            log.info("ТТН %s: отримано → видано %s × %s%s", ttn, article, qty,
-                     f" (не вдалось: {err})" if err else "")
+            for it in items:
+                _, err = await stock.receive(tg_id, it["article"], it["qty"])
+                if err:
+                    log.warning("ТТН %s: видача %s × %s не пройшла: %s",
+                                ttn, it["article"], it["qty"], err)
+            log.info("ТТН %s: отримано → видано %s", ttn, listing)
         elif now == "dead":
-            _, err = await stock.release(tg_id, article, qty)
-            log.info("ТТН %s: %s → резерв знято з %s × %s%s", ttn,
-                     fresh["status"], article, qty,
-                     f" (не вдалось: {err})" if err else "")
+            _, err = await stock.release_many(tg_id, items)
+            log.info("ТТН %s: %s → резерв знято з %s%s", ttn, fresh["status"],
+                     listing, f" (не вдалось: {err})" if err else "")
         elif now == "refusal":
             # резерв НЕ знімаємо: товар фізично їде назад, рішення за адміном
-            log.warning("ТТН %s: %s — резерв %s × %s лишаємо, потрібне рішення",
-                        ttn, fresh["status"], article, qty)
+            log.warning("ТТН %s: %s — резерв %s лишаємо, потрібне рішення",
+                        ttn, fresh["status"], listing)
             await _tell_admin(
                 bot,
                 "↩️ <b>Відмова / повернення</b>\n"
                 f"ТТН <code>{ttn}</code> — {fresh['status']}\n"
-                f"Замовлення №{row.get('order_no', '?')}, {article} × {qty}\n"
+                f"Замовлення №{head.get('order_no', '?')}, {listing}\n"
                 "Резерв у залишках залишено — зніміть вручну, коли товар "
                 "повернеться на склад.", ttn)
     except Exception as e:  # noqa: BLE001

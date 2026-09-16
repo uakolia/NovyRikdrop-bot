@@ -39,7 +39,6 @@ class Order(StatesGroup):
     flat = State()
     confirm = State()
     payment_proof = State()
-    partial_ttn = State()
 
 
 # з якого кроку куди веде «⬅️ Назад»
@@ -170,7 +169,8 @@ async def show_cart(target, state: FSMContext):
                         "label": f"{name} × {it['qty']}"[:40]})
     lines.append(f"\n💰 <b>Разом: {cart_total(uid, cart):,} грн</b>"
                  .replace(",", " "))
-    lines.append("\nКожна позиція їде окремою накладною.")
+    lines.append(f"\nУсі позиції поїдуть однією накладною, місць: "
+                 f"{sum(int(i['qty']) for i in cart)}.")
     await _send(target, "\n".join(lines), reply_markup=kb.cart_kb(buttons))
 
 
@@ -427,7 +427,8 @@ async def show_confirm(target, state: FSMContext):
     total = f"{cart_total(uid, cart):,}".replace(",", " ")
     lines = ["📋 <b>Перевірте замовлення</b>\n"]
     lines += await cart_lines(uid, cart)
-    tail = ("\nКожна позиція їде окремою накладною."
+    tail = (f"\nУсі позиції поїдуть однією накладною, місць: "
+            f"{sum(int(i['qty']) for i in cart)}."
             if len(cart) > 1 else "")
     await _send(target,
                 "\n".join(lines) +
@@ -954,115 +955,76 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
                               f"{res_err}")
             return
 
-    # ---- по накладній на позицію ----
-    created, failed = [], []
+    # ---- одна накладна на все замовлення ----
+    ttn_note = ""
     if config.NP_AUTO_TTN and create_ttn:
-        created, failed = await _create_ttns(rows, data, user, to_door)
-
-    if failed and created:
-        # частина накладних уже існує — рішення за дропшипером
-        await state.set_state(Order.partial_ttn)
-        await state.update_data(
-            partial={"rows": rows, "created": created, "failed": failed,
-                     "reserved": to_reserve, "proof": list(proof_file_id or []),
-                     "create_ttn": create_ttn,
-                     "address": _address_line(data)})
-        await out.edit_text(_partial_text(created, failed),
-                            reply_markup=kb.partial_ttn_kb())
-        await _tell_admin(out.bot,
-                          f"⚠️ Замовлення №{common['order_no']} "
-                          f"({common['dropshipper']}): створено "
-                          f"{len(created)} накладних із {len(rows)}. "
-                          f"Не вийшло: "
-                          + ", ".join(f["article"] for f in failed)
-                          + ". Чекаємо рішення дропшипера.")
-        return
+        ok, note = await _create_ttn(rows, data, user, to_door)
+        if ok:
+            ttn_note = note
+        else:
+            ttn_note = ("\n⚠️ ТТН не вдалося створити автоматично — "
+                        "менеджер оформить вручну.")
+            await _tell_admin(out.bot,
+                              f"⚠️ Замовлення №{common['order_no']} "
+                              f"({common['dropshipper']}): ТТН не створено — "
+                              f"{note}")
 
     await state.clear()
     await _record_order(out, user, rows, _address_line(data), proof_file_id,
-                        create_ttn)
+                        create_ttn, ttn_note)
 
 
-async def _create_ttns(rows, data, user, to_door: bool):
-    """Створити накладну на кожну позицію. Повертає (створені, невдалі).
+async def _create_ttn(rows, data, user, to_door: bool):
+    """Одна накладна на все замовлення. Повертає (успіх, примітка/помилка).
 
-    Контрагента й адресу створюємо один раз на все замовлення. Зупиняємось на
-    першій невдачі: решту позицій не чіпаємо, щоб не плодити накладні, які,
-    можливо, доведеться видаляти.
+    Вага, обʼєм і вартість — суми позицій, місць — стільки, скільки одиниць
+    товару: дві ялинки їдуть однією накладною на два місця.
     """
-    created, failed = [], []
-    recipient = None
-    address_ref = ""
-    total = sum(int(r["price_drop"] or 0) for r in rows) or 1
-    cod_total = int(data.get("cod_amount") or 0)
-    cod_left = cod_total
-
-    for idx, row in enumerate(rows):
+    items = []
+    for row in rows:
         item = catalog.by_article(row["article"])
-        qty = int(row["qty"])
-        # «При отриманні» ділимо між накладними пропорційно вартості позиції,
-        # залишок від округлення кладемо на останню
-        if cod_total:
-            share = (cod_total - cod_left if idx == len(rows) - 1
-                     else int(cod_total * int(row["price_drop"]) / total))
-            cod_item = cod_left if idx == len(rows) - 1 else share
-            cod_left -= cod_item
-        else:
-            cod_item = 0
-        try:
-            if recipient is None:
-                recipient = await np.create_recipient(data["fio"], data["phone"])
-                if to_door:
-                    address_ref = await np.create_address(
-                        recipient[0], (data.get("street") or {}).get("ref", ""),
-                        data.get("building", ""), data.get("flat", ""))
-            res = await np.create_ttn(
-                recipient_city_ref=data["city"]["ref"],
-                recipient_warehouse_ref=(data.get("warehouse") or {}).get("ref", ""),
-                fio=data["fio"], phone=data["phone"],
-                description=catalog.ttn_description(item, user.id),
-                cost=int(row["price_drop"]),
-                weight=(item["weight_kg"] or 5) * qty,
-                volume=(item.get("volume_m3") or 0) * qty or None,
-                seats=qty,
-                cod_amount=cod_item,
-                to_door=to_door,
-                street_ref=(data.get("street") or {}).get("ref", ""),
-                building=data.get("building", ""),
-                flat=data.get("flat", ""),
-                recipient=recipient,
-                address_ref_ready=address_ref,
-            )
-            row["ttn"] = res["ttn"]
-            row["status"] = "ТТН створено"
-            created.append({"article": row["article"], "ttn": res["ttn"],
-                            "ref": res.get("ref", ""),
-                            "estimated_date": res.get("estimated_date", "")})
-        except Exception as e:  # noqa: BLE001
+        if item:
+            items.append((item, int(row["qty"])))
+    if not items:
+        return False, "немає позицій"
+
+    weight = sum((it["weight_kg"] or 5) * q for it, q in items)
+    volume = sum((it.get("volume_m3") or 0) * q for it, q in items)
+    seats = sum(q for _, q in items)
+    cost = sum(int(r["price_drop"] or 0) for r in rows)
+
+    try:
+        res = await np.create_ttn(
+            recipient_city_ref=data["city"]["ref"],
+            recipient_warehouse_ref=(data.get("warehouse") or {}).get("ref", ""),
+            fio=data["fio"], phone=data["phone"],
+            description=catalog.ttn_description_multi(items, user.id),
+            cost=cost,
+            weight=weight,
+            volume=volume or None,
+            seats=seats,
+            cod_amount=data.get("cod_amount") or 0,
+            to_door=to_door,
+            street_ref=(data.get("street") or {}).get("ref", ""),
+            building=data.get("building", ""),
+            flat=data.get("flat", ""),
+        )
+    except Exception as e:  # noqa: BLE001
+        for row in rows:
             row["status"] = "ТТН НЕ створено"
             row["comment"] = f"Помилка ТТН: {e}"
-            failed.append({"article": row["article"], "reason": str(e)})
-            break
-    # позиції після невдалої лишаються без накладної
+        return False, str(e)
+
+    # ТТН одна на замовлення, тож стоїть у кожному рядку позиції
     for row in rows:
-        if not row.get("ttn") and row["status"] not in ("ТТН НЕ створено",
-                                                        "очікує оплати"):
-            row["status"] = "ТТН НЕ створено"
-    return created, failed
-
-
-def _partial_text(created, failed) -> str:
-    lines = ["⚠️ <b>Накладні створено не на всі позиції</b>\n",
-             "Готові:"]
-    for c in created:
-        lines.append(f"  ✅ <code>{c['article']}</code> — ТТН "
-                     f"<code>{c['ttn']}</code>")
-    lines.append("\nНе вийшло:")
-    for f in failed:
-        lines.append(f"  ❌ <code>{f['article']}</code> — {f['reason']}"[:200])
-    lines.append("\nЩо робимо? Поки ви обираєте, товар лишається "
-                 "зарезервованим за вами.")
-    return "\n".join(lines)
+        row["ttn"] = res["ttn"]
+        row["status"] = "ТТН створено"
+    note = f"\n📦 <b>ТТН: <code>{res['ttn']}</code></b>"
+    if res.get("estimated_date"):
+        note += f"\n🗓 Орієнтовна доставка: {res['estimated_date']}"
+    if seats > 1:
+        note += f"\n📦 Місць у відправленні: {seats}"
+    return True, note
 
 
 async def _tell_admin(bot, text: str):
@@ -1075,7 +1037,7 @@ async def _tell_admin(bot, text: str):
 
 
 async def _record_order(out, user, rows, address_line: str, proof_file_id,
-                        create_ttn: bool):
+                        create_ttn: bool, ttn_note: str = ""):
     """Записати замовлення (CSV, локально, таблиця) і показати підсумок."""
     for row in rows:
         orders.save_csv(row)
@@ -1115,56 +1077,9 @@ async def _record_order(out, user, rows, address_line: str, proof_file_id,
     lines = [f"✅ <b>Замовлення №{head['order_no']} прийнято!</b>\n"]
     for row in rows:
         item = catalog.by_article(row["article"])
-        line = (f"🌲 {catalog.product_name(user.id, item)} — "
-                f"{row['size']} × {row['qty']}")
-        if row.get("ttn"):
-            line += f"\n    📦 ТТН: <code>{row['ttn']}</code>"
-        elif row["status"] == "ТТН НЕ створено":
-            line += "\n    ⚠️ накладну оформить менеджер"
-        lines.append(line)
+        lines.append(f"🌲 {catalog.product_name(user.id, item)} — "
+                     f"{row['size']} × {row['qty']}")
     lines += ["", f"👤 {head['recipient_fio']}", address_line,
               f"💳 {head['payment']}"]
-    await out.edit_text("\n".join(lines) + tail, reply_markup=kb.main_menu())
-
-
-@router.callback_query(F.data == "partial:keep", Order.partial_ttn)
-async def partial_keep(cb: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    p = data.get("partial") or {}
-    await state.clear()
-    proof = tuple(p.get("proof") or ()) or None
-    await _record_order(cb.message, cb.from_user, p["rows"],
-                        p.get("address", ""), proof, p.get("create_ttn", True))
-    await cb.answer()
-
-
-@router.callback_query(F.data == "partial:cancel", Order.partial_ttn)
-async def partial_cancel(cb: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    p = data.get("partial") or {}
-    await state.clear()
-    await cb.message.edit_text("⏳ Скасовую замовлення…")
-
-    deleted, kept = [], []
-    for c in p.get("created") or []:
-        if await np.delete_ttn(c.get("ref", "")):
-            deleted.append(c)
-        else:
-            kept.append(c)
-    if p.get("reserved"):
-        await stock.release_many(cb.from_user.id, p["reserved"])
-
-    text = ["✖️ <b>Замовлення скасовано</b>\n",
-            "Резерв знято, у таблицю нічого не записали."]
-    if deleted:
-        text.append(f"Видалено накладних: {len(deleted)}.")
-    if kept:
-        text.append("⚠️ Не вдалося видалити: "
-                    + ", ".join(f"<code>{c['ttn']}</code>" for c in kept)
-                    + " — менеджер скасує вручну.")
-    await cb.message.edit_text("\n".join(text), reply_markup=kb.main_menu())
-    await _tell_admin(cb.message.bot,
-                      "✖️ Дропшипер скасував замовлення з частково створеними "
-                      f"накладними. Видалено: {len(deleted)}, лишилось: "
-                      + (", ".join(c["ttn"] for c in kept) or "—"))
-    await cb.answer()
+    await out.edit_text("\n".join(lines) + ttn_note + tail,
+                        reply_markup=kb.main_menu())

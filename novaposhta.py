@@ -165,28 +165,11 @@ async def create_address(counterparty_ref: str, street_ref: str,
     return data[0]["Ref"]
 
 
-async def delete_ttn(ref: str):
-    """Видалити накладну (скасування замовлення з частково створеними ТТН).
-
-    Працює лише поки відправлення не передане в доставку. Повертає True/False,
-    помилку не піднімає: скасування не має падати через невдале видалення.
-    """
-    if not ref:
-        return False
-    try:
-        await _call("InternetDocument", "delete", {"DocumentRefs": ref})
-        return True
-    except NPError:
-        return False
-
-
 async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
                      fio: str, phone: str, description: str, cost: float,
                      weight: float, volume: float | None, seats: int = 1,
                      cod_amount: float = 0, to_door: bool = False,
-                     street_ref: str = "", building: str = "", flat: str = "",
-                     recipient: tuple | None = None,
-                     address_ref_ready: str = ""):
+                     street_ref: str = "", building: str = "", flat: str = ""):
     """Створити ТТН. cod_amount > 0 додає «Контроль оплати» на цю суму.
 
     Повертає {ttn, ref, cost_delivery, estimated_date}.
@@ -196,17 +179,11 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
         raise NPError("відправника не налаштовано — адмін: команда /np_setup")
     s = np_store.all_values()
 
-    # Замовлення з кількох позицій їде кількома накладними на одну адресу:
-    # контрагента й адресу створюємо один раз і передаємо сюди готовими,
-    # інакше на кожну позицію був би зайвий виклик НП.
-    if recipient:
-        recipient_ref, recipient_contact = recipient
-    else:
-        recipient_ref, recipient_contact = await create_recipient(fio, phone)
+    recipient_ref, recipient_contact = await create_recipient(fio, phone)
 
     if to_door:
-        address_ref = address_ref_ready or await create_address(
-            recipient_ref, street_ref, building, flat)
+        address_ref = await create_address(recipient_ref, street_ref,
+                                           building, flat)
         service_type = "WarehouseDoors"
     else:
         address_ref = recipient_warehouse_ref

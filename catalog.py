@@ -243,6 +243,50 @@ def product_name(user_id: int | None, item) -> str:
     return own or aliases.item_name(user_id, item)
 
 
+_TTN_PLURAL = {
+    "Штучна ялинка": "Штучні ялинки",
+    "Віночок": "Віночки",
+    "Гірлянда": "Гірлянди",
+    "Ікебана": "Ікебани",
+}
+
+
+def ttn_description_multi(items, user_id: int | None = None) -> str:
+    """Опис однієї накладної на кілька позицій.
+
+    items = [(товар, кількість)]. Персональні назви тут не влізуть, тому
+    перелічуємо артикули: «Штучні ялинки: Cr6G-220 ×1, Cr3P-210 ×2».
+    Артикули — оригінальні рядки прайсу, їх і знає фабрика.
+
+    Якщо категорії різні — пишемо «Новорічний декор». Ліміт НП 100 символів:
+    ріжемо по межі позиції й дописуємо «+N поз.», щоб артикул не розірвався
+    посередині.
+    """
+    items = [(it, int(q)) for it, q in items if it]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return ttn_description(items[0][0], user_id)
+
+    kinds = {ttn_prefix(it) for it, _ in items}
+    head = (_TTN_PLURAL.get(next(iter(kinds)), next(iter(kinds)))
+            if len(kinds) == 1 else "Новорічний декор")
+
+    parts = [f"{it['article']} ×{q}" for it, q in items]
+    out = f"{head}: {parts[0]}"
+    for i, part in enumerate(parts[1:], start=1):
+        candidate = f"{out}, {part}"
+        left = len(parts) - i - 1          # скільки ще лишиться після цієї
+        tail = f" +{left} поз." if left else ""
+        if len(candidate) + len(tail) <= 100:
+            out = candidate
+        else:
+            rest = len(parts) - i
+            out = f"{out} +{rest} поз."
+            break
+    return out[:100]
+
+
 def ttn_description(item, user_id: int | None = None) -> str:
     """Опис для ТТН: «Штучна ялинка Грандія 2.2 м (Cr6G-220)».
 

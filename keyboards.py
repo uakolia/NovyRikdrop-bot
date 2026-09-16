@@ -135,16 +135,6 @@ def cart_kb(items: list[dict]):
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def partial_ttn_kb():
-    """Частина накладних створилась, одна впала — рішення за дропшипером."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Залишити створені накладні",
-                              callback_data="partial:keep")],
-        [InlineKeyboardButton(text="✖️ Скасувати все замовлення",
-                              callback_data="partial:cancel")],
-    ])
-
-
 def confirm_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Підтвердити замовлення", callback_data="confirm:yes")],
