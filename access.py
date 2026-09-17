@@ -20,6 +20,12 @@ class ApprovalMiddleware(BaseMiddleware):
         if user is None or storage.is_approved(user.id):
             return await handler(event, data)
 
+        # Не знайшли в списку — можливо, список просто не підтягнувся при
+        # старті (після редеплою локального файлу немає). Перечитуємо аркуш,
+        # перш ніж відмовляти; частота обмежена в storage.
+        if await storage.ensure_synced(user.id):
+            return await handler(event, data)
+
         # НЕсхвалений: пропускаємо лише /start, допомогу та звернення
         if isinstance(event, Message):
             text = (event.text or "").strip().split()[0].lower() if event.text else ""

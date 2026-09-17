@@ -28,6 +28,35 @@ def _tier(value) -> str:
     return s if s in TIERS else ""
 
 
+# коли востаннє ходили в таблицю по список схвалених (щоб не ходити на кожне
+# натискання кнопки незнайомця)
+_last_sync = 0.0
+SYNC_COOLDOWN = 60
+
+
+async def ensure_synced(user_id: int) -> bool:
+    """Перевірити доступ, за потреби перечитавши таблицю.
+
+    Локальний файл зникає при редеплої, тож якщо синхронізація на старті не
+    вдалася, схвалених немає взагалі й бот просить авторизуватися наново.
+    Тут даємо йому другий шанс: перш ніж відмовити, перечитуємо аркуш.
+    """
+    global _last_sync
+    import time
+    if is_approved(user_id):
+        return True
+    if time.monotonic() - _last_sync < SYNC_COOLDOWN:
+        return False
+    _last_sync = time.monotonic()
+    n, err = await sync_from_sheet()
+    if err:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Список дропшиперів не перечитався: %s", err)
+        return False
+    return is_approved(user_id)
+
+
 def price_tier(user_id: int | None = None) -> str:
     """Тариф дропшипера: власний із таблиці або загальний config.PRICE_TIER."""
     if user_id is None:
@@ -109,11 +138,15 @@ def pending_users() -> dict:
 def approve_local(user_id: int) -> dict:
     with _lock:
         d = _load()
-        info = d["pending"].pop(str(user_id), None) or {"name": "", "username": ""}
-        info.setdefault("tier", "")
-        d["approved"][str(user_id)] = info
+        uid = str(user_id)
+        info = d["pending"].pop(uid, None) or {"name": "", "username": ""}
+        # тариф ведеться в таблиці; при повторному схваленні його не можна
+        # обнуляти — інакше дропшипер до перезапуску бачить загальні ціни
+        old_tier = (_approved_cache.get(uid) or d["approved"].get(uid) or {}).get("tier")
+        info["tier"] = info.get("tier") or old_tier or ""
+        d["approved"][uid] = info
         _save(d)
-    _approved_cache[str(user_id)] = info
+    _approved_cache[uid] = info
     return info
 
 
@@ -124,6 +157,10 @@ async def approve(user_id: int, approved_by: str = "") -> tuple[dict, str | None
     err = await sheets_store.push_dropshipper(
         user_id, info.get("name", ""), info.get("username", ""),
         "схвалений", approved_by)
+    # одразу перечитуємо аркуш: там джерело правди і для статусу, і для тарифу
+    if not err:
+        await sync_from_sheet()
+        info = _approved_cache.get(str(user_id), info)
     return info, err
 
 

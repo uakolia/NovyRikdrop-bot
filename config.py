@@ -66,6 +66,10 @@ SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
 # спільний секрет із Властивостями Apps Script (без нього скрипт відхиляє запити)
 SHEETS_API_SECRET = os.getenv("SHEETS_API_SECRET", "")
 
+# як часто перечитувати з таблиці схвалених, тарифи, назви й залишки, секунд
+# (0 — лише при старті). Без цього зміна тарифу діє тільки після перезапуску.
+SHEET_SYNC_SECONDS = int(os.getenv("SHEET_SYNC_SECONDS", "600"))
+
 # як часто перепитувати статуси ТТН у Нової Пошти, секунд (0 — не опитувати)
 TTN_POLL_SECONDS = int(os.getenv("TTN_POLL_SECONDS", "3600"))
 

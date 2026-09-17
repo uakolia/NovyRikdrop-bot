@@ -56,6 +56,34 @@ async def check_stock_articles():
              len(rows), len(missing))
 
 
+async def sync_forever():
+    """Періодично перечитувати таблицю: схвалені, тарифи, назви, залишки.
+
+    Інакше зміна тарифу чи нова персональна назва діяли б лише після
+    перезапуску бота.
+    """
+    period = config.SHEET_SYNC_SECONDS
+    if period <= 0:
+        return
+    log.info("Дані з таблиці оновлюються кожні %d с", period)
+    while True:
+        await asyncio.sleep(period)
+        try:
+            n, err = await storage.sync_from_sheet()
+            if err:
+                log.warning("Дропшипери не оновились: %s", err)
+            n_alias, alias_err = await aliases.sync_from_sheet()
+            n_stock, stock_err = await stock.refresh()
+            if stock_err:
+                log.warning("Залишки не оновились: %s", stock_err)
+            log.info("Оновлено з таблиці: дропшиперів %d, назв %d, залишків %d",
+                     n, n_alias, n_stock)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.exception("Помилка циклу оновлення з таблиці: %s", e)
+
+
 async def main():
     if not config.BOT_TOKEN:
         raise SystemExit("Задайте BOT_TOKEN у .env")
@@ -88,6 +116,7 @@ async def main():
     await storage.init_order_seq()
     await check_stock_articles()
     poller = asyncio.create_task(np_tracking.run_forever(bot))
+    syncer = asyncio.create_task(sync_forever())
 
     # HTTP-сервер (health-check для хостингу + вебхук Weblium)
     app = make_app(bot)
@@ -101,6 +130,7 @@ async def main():
         await dp.start_polling(bot)
     finally:
         poller.cancel()
+        syncer.cancel()
         await runner.cleanup()
         await http_client.close()      # одна спільна сесія на весь бот
 
