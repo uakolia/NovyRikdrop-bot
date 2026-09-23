@@ -95,7 +95,13 @@ class WarehouseError(Exception):
     """Синхронізація неможлива — краще нічого не робити, ніж зіпсувати прайс."""
 
 
-def _google_error(e, what: str) -> "WarehouseError":
+def _short_id(value: str) -> str:
+    """ID у текст помилки: достатньо, щоб упізнати, і не весь рядок."""
+    v = (value or "").strip()
+    return f"{v[:10]}…{v[-4:]}" if len(v) > 16 else (v or "порожньо")
+
+
+def _google_error(e, what: str, sheet_id: str = "") -> "WarehouseError":
     """Помилку Google переводимо в зрозумілу, з її ж текстом причини.
 
     Без тексту причини «Sheets відповів помилкою 400» нічого не пояснює: за
@@ -119,17 +125,18 @@ def _google_error(e, what: str) -> "WarehouseError":
                               "прайсу редагування)")
     hint = ""
     low = reason.lower()
-    if "not supported for this document" in low or "this document" in low:
-        hint = (". Схоже, ID вказує на .xlsx-файл, а не на Google-таблицю: "
-                "Sheets API з файлами Excel не працює. Відкрийте файл у Google "
-                "Таблицях («Файл → Зберегти як Google Таблицю») і візьміть ID "
-                "нової таблиці")
+    if "not supported for this document" in low or "office file" in low:
+        hint = (". Це ID .xlsx-файла, а не Google-таблиці — Sheets API з Excel "
+                "не працює. Найчастіше в змінній лишився старий ID файла: "
+                "у WAREHOUSE_SHEET_ID має бути ID саме Google-таблиці складу")
     elif "unable to parse range" in low:
         hint = ". Не зміг прочитати назву вкладки — можливо, її перейменували"
     elif "invalid" in low and "spreadsheetid" in low.replace(" ", ""):
         hint = (". У змінній має бути лише ID, без https://docs.google.com/... "
                 "і без лапок")
-    return WarehouseError(f"{what}: Google відповів {code} — {reason}{hint}")
+    used = f" (ID {_short_id(sheet_id)})" if sheet_id else ""
+    return WarehouseError(f"{what}{used}: Google відповів {code} — "
+                          f"{reason}{hint}")
 
 
 # ---------------------------------------------------------------- допоміжне
@@ -406,7 +413,7 @@ def read_source_sheet(sheets, sheet_id: str):
             spreadsheetId=sheet_id,
             fields="sheets(properties(title))").execute()
     except HttpError as e:
-        raise _google_error(e, "складська таблиця")
+        raise _google_error(e, "складська таблиця", sheet_id)
 
     titles = [s["properties"]["title"] for s in meta.get("sheets", [])]
     items, notes, dups = {}, [], {}
@@ -418,7 +425,7 @@ def read_source_sheet(sheets, sheet_id: str):
                 spreadsheetId=sheet_id,
                 range=f"'{title}'").execute().get("values", [])
         except HttpError as e:
-            raise _google_error(e, f"вкладка складу «{title}»")
+            raise _google_error(e, f"вкладка складу «{title}»", sheet_id)
         if not rows:
             continue
         if not updated_at and len(rows[0]) > 17:
@@ -454,7 +461,7 @@ def _tab_names(sheets):
             spreadsheetId=config.PRICELIST_SHEET_ID,
             fields="sheets(properties(title))").execute()
     except HttpError as e:
-        raise _google_error(e, "прайс")
+        raise _google_error(e, "прайс", config.PRICELIST_SHEET_ID)
     return [s["properties"]["title"] for s in meta.get("sheets", [])]
 
 
