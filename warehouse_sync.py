@@ -95,6 +95,43 @@ class WarehouseError(Exception):
     """Синхронізація неможлива — краще нічого не робити, ніж зіпсувати прайс."""
 
 
+def _google_error(e, what: str) -> "WarehouseError":
+    """Помилку Google переводимо в зрозумілу, з її ж текстом причини.
+
+    Без тексту причини «Sheets відповів помилкою 400» нічого не пояснює: за
+    цим кодом ховаються і URL замість ID, і .xlsx замість таблиці, і зайві
+    лапки у змінній.
+    """
+    code = getattr(e, "status_code", None) or getattr(
+        getattr(e, "resp", None), "status", 0)
+    reason = ""
+    try:
+        reason = e._get_reason() or ""
+    except Exception:  # noqa: BLE001
+        reason = str(e)
+    reason = re.sub(r"\s+", " ", reason).strip()
+
+    if code == 404:
+        return WarehouseError(f"{what} не знайдено — перевірте ID у змінній")
+    if code in (401, 403):
+        return WarehouseError(f"немає доступу до {what} — дайте службовому "
+                              "акаунту право (складській таблиці читання, "
+                              "прайсу редагування)")
+    hint = ""
+    low = reason.lower()
+    if "not supported for this document" in low or "this document" in low:
+        hint = (". Схоже, ID вказує на .xlsx-файл, а не на Google-таблицю: "
+                "Sheets API з файлами Excel не працює. Відкрийте файл у Google "
+                "Таблицях («Файл → Зберегти як Google Таблицю») і візьміть ID "
+                "нової таблиці")
+    elif "unable to parse range" in low:
+        hint = ". Не зміг прочитати назву вкладки — можливо, її перейменували"
+    elif "invalid" in low and "spreadsheetid" in low.replace(" ", ""):
+        hint = (". У змінній має бути лише ID, без https://docs.google.com/... "
+                "і без лапок")
+    return WarehouseError(f"{what}: Google відповів {code} — {reason}{hint}")
+
+
 # ---------------------------------------------------------------- допоміжне
 
 def _norm(s) -> str:
@@ -369,22 +406,19 @@ def read_source_sheet(sheets, sheet_id: str):
             spreadsheetId=sheet_id,
             fields="sheets(properties(title))").execute()
     except HttpError as e:
-        code = getattr(e, "status_code", None) or e.resp.status
-        if code == 404:
-            raise WarehouseError("складської таблиці не знайдено — перевірте "
-                                 "WAREHOUSE_SHEET_ID")
-        if code in (401, 403):
-            raise WarehouseError("немає доступу до складської таблиці — дайте "
-                                 "службовому акаунту право читання")
-        raise WarehouseError(f"Sheets відповів помилкою {code}")
+        raise _google_error(e, "складська таблиця")
 
     titles = [s["properties"]["title"] for s in meta.get("sheets", [])]
     items, notes, dups = {}, [], {}
     updated_at = ""
     used = 0
     for title in titles:
-        rows = sheets.spreadsheets().values().get(
-            spreadsheetId=sheet_id, range=f"'{title}'").execute().get("values", [])
+        try:
+            rows = sheets.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=f"'{title}'").execute().get("values", [])
+        except HttpError as e:
+            raise _google_error(e, f"вкладка складу «{title}»")
         if not rows:
             continue
         if not updated_at and len(rows[0]) > 17:
@@ -414,9 +448,13 @@ def _tab_names(sheets):
               if t.strip()]
     if wanted:
         return wanted
-    meta = sheets.spreadsheets().get(
-        spreadsheetId=config.PRICELIST_SHEET_ID,
-        fields="sheets(properties(title))").execute()
+    from googleapiclient.errors import HttpError
+    try:
+        meta = sheets.spreadsheets().get(
+            spreadsheetId=config.PRICELIST_SHEET_ID,
+            fields="sheets(properties(title))").execute()
+    except HttpError as e:
+        raise _google_error(e, "прайс")
     return [s["properties"]["title"] for s in meta.get("sheets", [])]
 
 
@@ -531,7 +569,7 @@ def _sync_blocking() -> dict:
             if code == 400:
                 report["skipped"].append(f"{tab}: вкладки немає в прайсі")
             else:
-                raise WarehouseError(f"Sheets відповів помилкою {code}")
+                raise _google_error(e, f"вкладка прайсу «{tab}»")
 
     # є в джерелі, немає в прайсі — не пишемо, повідомляємо
     used = {id(index[k]) for k in report["in_price"] if k in index}
