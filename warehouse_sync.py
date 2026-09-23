@@ -90,6 +90,17 @@ ARTICLE_HEADER = "article"
 # назва — ні.
 SKIP_BLOCK_LABELS = {"колобок"}
 
+# Другий спосіб розділення варіантів у складі: позначка ЛІВІШЕ артикула, у
+# першому рядку блоку. Наприклад той самий Cr3-***L іде двома блоками:
+#     «з випуском» → Cr3-150L … Cr3-400L   ← цей варіант нам не потрібен
+#     «Люкс»       → Cr3-150L … Cr3-400L   ← цей беремо
+# Позначку шукаємо не за номером колонки (E), а за вмістом: у файлі вона стоїть
+# у колонці для гілок, тож за заголовком її не впізнати, а номери зсуваються.
+SKIP_VARIANT_WORDS = ("випуск",)
+
+# позначка варіанта — короткий текст без «/» (з «/» — це назва моделі)
+MAX_VARIANT_LEN = 30
+
 # «є» без числа
 YES_WORDS = {"так", "є", "yes", "+", "да", "in stock", "у наявності"}
 
@@ -347,7 +358,8 @@ def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
         return False
 
     model = ""
-    labels, skipped = [], []
+    variant = ""                      # позначка варіанта, діє до наступної
+    labels, skipped, skipped_variant = [], [], []
     block = []                        # накопичені рядки поточного блоку
 
     def flush(label: str):
@@ -366,11 +378,18 @@ def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
         block.clear()
 
     for row in rows[hdr + 1:]:
-        # назва моделі з об'єднаної клітинки — протягуємо вниз
+        # назва моделі з об'єднаної клітинки — протягуємо вниз; заодно ловимо
+        # позначку варіанта («з випуском» / «Люкс») у тих самих колонках
         for cell in row[:cols["article"]]:
             text = _norm(cell)
-            if text and "/" in text and not text.startswith("http"):
+            if not text or text.startswith("http"):
+                continue
+            if "/" in text:
                 model = text
+                break
+            if (len(text) <= MAX_VARIANT_LEN
+                    and not any(ch.isdigit() for ch in text)):
+                variant = text
                 break
         if len(row) <= cols["article"]:
             continue
@@ -381,6 +400,9 @@ def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
             labels.append(article)
             flush(article)            # підпис закриває блок над собою
             continue
+        if any(w in variant.lower() for w in SKIP_VARIANT_WORDS):
+            skipped_variant.append(article)
+            continue
         raw = row[cols["stock"]] if len(row) > cols["stock"] else None
         state, qty, note = parse_stock(raw)
         block.append((article, state, qty, note))
@@ -389,6 +411,10 @@ def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
     if labels:
         notes.append(f"аркуш «{title}»: підписи блоків, не товари — "
                      + ", ".join(dict.fromkeys(labels)))
+    if skipped_variant:
+        notes.append(f"аркуш «{title}»: відкинуто варіант "
+                     + "/".join(SKIP_VARIANT_WORDS) + " — "
+                     + ", ".join(dict.fromkeys(skipped_variant)))
     if skipped:
         notes.append(f"аркуш «{title}»: відкинуто блок "
                      + "/".join(sorted(SKIP_BLOCK_LABELS)) + " — "
