@@ -3,6 +3,7 @@ aiohttp>=3.9
 python-dotenv>=1.0
 # бази часових поясів немає у python:*-slim — без неї Europe/Kyiv не знайдеться
 tzdata>=2024.1
-# перенесення залишків зі складської Google-таблиці в прайс
+# перенесення залишків зі складського файла в прайс (склад — .xlsx у Drive)
 google-auth>=2.30
 google-api-python-client>=2.130
+openpyxl>=3.1

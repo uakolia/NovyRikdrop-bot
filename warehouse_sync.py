@@ -1,7 +1,16 @@
 """Перенесення залишків зі складської таблиці в наш прайс.
 
-ДЖЕРЕЛО — складська Google-таблиця (WAREHOUSE_SHEET_ID), ПРИЙМАЧ — наш прайс
-(config.PRICELIST_SHEET_ID). Обидві читаються й пишуться через Sheets API.
+ДЖЕРЕЛО — складський файл у Drive (WAREHOUSE_SHEET_ID), ПРИЙМАЧ — наш прайс
+(config.PRICELIST_SHEET_ID, рідна Google-таблиця, пишемо через Sheets API).
+
+Тип джерела визначаємо самі, за mimeType у Drive, і це не формальність:
+  • .xlsx — Google показує такі файли в редакторі Таблиць, і CSV-експорт із них
+    працює, але Sheets API відмовляє: «The document must not be an Office file».
+    Тому качаємо файл через files().get_media() (а НЕ export_media, той лише для
+    Google-формату) і читаємо openpyxl із data_only=True;
+  • рідна Google-таблиця — через Sheets API.
+Через це «складська таблиця» на вигляд може бути будь-чим із двох, і вгадувати
+за розширенням у назві не можна.
 
 Синхронізуються всі вкладки прайсу, де є колонка залишку; решта не чіпається.
 
@@ -84,7 +93,9 @@ SKIP_BLOCK_LABELS = {"колобок"}
 # «є» без числа
 YES_WORDS = {"так", "є", "yes", "+", "да", "in stock", "у наявності"}
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
+          # .xlsx доводиться качати файлом: Sheets API з Office не працює
+          "https://www.googleapis.com/auth/drive.readonly"]
 
 # щоб не засипати адміна: не частіше разу на годину
 ALERT_COOLDOWN = 3600
@@ -315,12 +326,13 @@ def _credentials():
 
 
 def _services(creds):
-    """Клієнт Sheets API. Drive не потрібен: обидві таблиці — рідні Google."""
+    """(drive, sheets). Drive потрібен, щоб розпізнати й завантажити .xlsx."""
     try:
         from googleapiclient.discovery import build
     except ImportError as e:  # noqa: BLE001
         raise WarehouseError(f"немає бібліотеки google-api-python-client: {e}")
-    return build("sheets", "v4", credentials=creds, cache_discovery=False)
+    return (build("drive", "v3", credentials=creds, cache_discovery=False),
+            build("sheets", "v4", credentials=creds, cache_discovery=False))
 
 
 def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
@@ -435,11 +447,62 @@ def read_source_sheet(sheets, sheet_id: str):
     return _finish_source(items, updated_at, notes, dups, used)
 
 
-def read_source(sheets):
-    """Прочитати складську таблицю."""
-    if not config.WAREHOUSE_SHEET_ID:
+GOOGLE_SHEET_MIME = "application/vnd.google-apps.spreadsheet"
+
+
+def download_xlsx(drive, file_id: str) -> bytes:
+    """Завантажити .xlsx: get_media, а не export_media (файл не Google-формату)."""
+    from googleapiclient.errors import HttpError
+    from googleapiclient.http import MediaIoBaseDownload
+    buf = io.BytesIO()
+    try:
+        downloader = MediaIoBaseDownload(buf, drive.files().get_media(
+            fileId=file_id))
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+    except HttpError as e:
+        raise _google_error(e, "складський файл", file_id)
+    return buf.getvalue()
+
+
+def parse_xlsx(blob: bytes):
+    """Розібрати .xlsx тим самим кодом, що й Google-таблицю."""
+    try:
+        import openpyxl
+    except ImportError as e:  # noqa: BLE001
+        raise WarehouseError(f"немає бібліотеки openpyxl: {e}")
+    wb = openpyxl.load_workbook(io.BytesIO(blob), data_only=True)
+    items, notes, dups = {}, [], {}
+    updated_at = ""
+    used = 0
+    for ws in wb.worksheets:
+        rows = [[c.value for c in row] for row in ws.iter_rows()]
+        if not rows:
+            continue
+        if not updated_at and len(rows[0]) > 17:
+            updated_at = _norm(rows[0][17])      # R1 — «станом на …»
+        if _collect_rows(rows, ws.title, items, notes, dups):
+            used += 1
+    return _finish_source(items, updated_at, notes, dups, used)
+
+
+def read_source(drive, sheets):
+    """Прочитати склад, сам розпізнавши .xlsx чи Google-таблицю."""
+    file_id = (config.WAREHOUSE_SHEET_ID or "").strip()
+    if not file_id:
         raise WarehouseError("не задано WAREHOUSE_SHEET_ID")
-    return read_source_sheet(sheets, config.WAREHOUSE_SHEET_ID)
+    from googleapiclient.errors import HttpError
+    try:
+        meta = drive.files().get(fileId=file_id,
+                                 fields="mimeType,name").execute()
+    except HttpError as e:
+        raise _google_error(e, "складський файл", file_id)
+    if meta.get("mimeType") == GOOGLE_SHEET_MIME:
+        return read_source_sheet(sheets, file_id)
+    log.info("Склад «%s» — файл %s, читаю як .xlsx", meta.get("name", "?"),
+             meta.get("mimeType", "?"))
+    return parse_xlsx(download_xlsx(drive, file_id))
 
 
 # ---------------------------------------------------------------- прайс
@@ -560,8 +623,8 @@ def _sync_blocking() -> dict:
     """Уся робота з мережею. Синхронна — викликати через asyncio.to_thread."""
     if not config.WAREHOUSE_SHEET_ID:
         raise WarehouseError("не задано WAREHOUSE_SHEET_ID")
-    sheets = _services(_credentials())
-    items, updated_at, notes = read_source(sheets)
+    drive, sheets = _services(_credentials())
+    items, updated_at, notes = read_source(drive, sheets)
 
     index, _ = build_index(items)
     report = {"written": 0, "tabs": [], "skipped": [], "gone": [], "unknown": [],
