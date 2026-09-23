@@ -1,29 +1,28 @@
 """Перенесення залишків зі складської таблиці в наш прайс.
 
-ДЖЕРЕЛО може бути двох видів, і читаються вони по-різному:
-  • рідна Google-таблиця (WAREHOUSE_SHEET_ID) — через Sheets API. Так простіше
-    й надійніше: API віддає порахованi значення формул, тож пастка з кешем не
-    виникає взагалі;
-  • .xlsx у Drive (WAREHOUSE_FILE_ID) — через files().get_media() (а НЕ
-    export_media, той лише для Google-файлів) і openpyxl з data_only=True.
-Якщо задано обидва, береться рідна таблиця.
+ДЖЕРЕЛО — складська Google-таблиця (WAREHOUSE_SHEET_ID), ПРИЙМАЧ — наш прайс
+(config.PRICELIST_SHEET_ID). Обидві читаються й пишуться через Sheets API.
 
-ПРИЙМАЧ — наш прайс, рідна Google-таблиця, пишемо через Sheets API.
+Синхронізуються всі вкладки прайсу, де є колонка залишку; решта не чіпається.
 
 Прайс — джерело правди для цін. Тому пишемо ТІЛЬКИ в колонку «К-сть на складі»,
 знайдену за заголовком, і ніколи за індексом: у кожній вкладці своя розкладка
 (заголовок то в 2-му, то в 4-му рядку, артикул то в D, то в H, то в J).
 
 Що може піти не так із чужим файлом — і що ми робимо:
-  • data_only=True віддає КЕШОВАНІ значення формул. Якщо весь стовпець залишку
-    порожній, це майже напевно відсутність кешу, а не «все розпродано», —
-    відмовляємось від синхронізації, нулів не пишемо;
+  • якщо весь стовпець залишку порожній — відмовляємось від синхронізації:
+    це радше збій, ніж «усе розпродано», нулів не пишемо;
   • об'єднані клітинки: назва моделі стоїть лише в першому рядку групи, решта
     читаються як None — протягуємо останню побачену вниз, як catalog_parser;
-  • немає заголовка «К-сть на складі» — вкладку пропускаємо з помилкою:
-    краще вчорашні числа, ніж сміття;
-  • файл зник, доступу немає, аркуш перейменували — ERROR і лист адміну, не
-    частіше разу на годину.
+  • немає заголовка залишку — вкладку пропускаємо: краще вчорашні числа, ніж
+    сміття;
+  • таблиця зникла, доступу немає, аркуш перейменували — ERROR і лист адміну,
+    не частіше разу на годину.
+
+ЗВЕДЕННЯ АРТИКУЛІВ. Спершу канонічний ключ (article_key), далі — одне явне
+правило: у складі літера-суфікс стоїть у кінці («Cr3-150F»), а в прайсі перед
+розміром («Cr3F-150»). Перевірено, що це не створює колізій: 14 пар, кожна
+однозначна. Усе інше без пари не вгадуємо — виносимо у звіт.
 
 Три стани залишку, і «невідомо» — не те саме, що «немає»:
     число          → кількість, пишемо в прайс
@@ -72,8 +71,7 @@ SKIP_SOURCE_ROWS = range(118, 128)
 # «є» без числа
 YES_WORDS = {"так", "є", "yes", "+", "да", "in stock", "у наявності"}
 
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly",
-          "https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 # щоб не засипати адміна: не частіше разу на годину
 ALERT_COOLDOWN = 3600
@@ -123,6 +121,38 @@ def parse_stock(value):
         return "unknown", None, s
     note = (low[:m.start()] + low[m.end():]).strip(" ()шт.,")
     return "qty", int(n), note
+
+
+# У складі літера-суфікс стоїть у кінці («Cr3-150F», «Cr6-220F»), а в прайсі
+# перед розміром («Cr3F-150»). Це єдине правило зведення поверх канонічного
+# ключа; перевірено на живих таблицях — 14 пар, жодної колізії. Решту
+# розбіжностей не вгадуємо: вони йдуть у звіт.
+_SUFFIX_SWAP = re.compile(r"^([A-Za-zА-Яа-яІіЇїЄєҐґ]+\d*)-(\d+)"
+                          r"([A-Za-zА-Яа-яІіЇїЄєҐґ]+)$")
+
+
+def swapped_key(article: str) -> str:
+    """«Cr3-150F» → канонічний ключ «Cr3F-150». "" — правило не підходить."""
+    m = _SUFFIX_SWAP.match(_norm(article))
+    if not m:
+        return ""
+    return article_key.canon(f"{m.group(1)}{m.group(3)}-{m.group(2)}")
+
+
+def build_index(items: dict):
+    """Ключ → позиція: спершу як є, далі за правилом суфікса.
+
+    Повертає (індекс, пари), де пари — що з чим звели за правилом, щоб це
+    було видно у звіті, а не лишалося магією.
+    """
+    index = dict(items)
+    pairs = []
+    for key, item in items.items():
+        alt = swapped_key(item["article"])
+        if alt and alt not in index:
+            index[alt] = item
+            pairs.append((item["article"], alt))
+    return index, pairs
 
 
 def col_letter(idx0: int) -> str:
@@ -180,35 +210,12 @@ def _credentials():
 
 
 def _services(creds):
+    """Клієнт Sheets API. Drive не потрібен: обидві таблиці — рідні Google."""
     try:
         from googleapiclient.discovery import build
     except ImportError as e:  # noqa: BLE001
         raise WarehouseError(f"немає бібліотеки google-api-python-client: {e}")
-    return (build("drive", "v3", credentials=creds, cache_discovery=False),
-            build("sheets", "v4", credentials=creds, cache_discovery=False))
-
-
-def download_source(drive, file_id: str) -> bytes:
-    """Завантажити .xlsx. get_media, а НЕ export_media: файл не Google-формату."""
-    from googleapiclient.errors import HttpError
-    from googleapiclient.http import MediaIoBaseDownload
-    buf = io.BytesIO()
-    try:
-        request = drive.files().get_media(fileId=file_id)
-        downloader = MediaIoBaseDownload(buf, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
-    except HttpError as e:
-        code = getattr(e, "status_code", None) or e.resp.status
-        if code == 404:
-            raise WarehouseError("файл складу не знайдено (видалено або "
-                                 "змінився WAREHOUSE_FILE_ID)")
-        if code in (401, 403):
-            raise WarehouseError("немає доступу до файла складу — дайте "
-                                 "службовому акаунту право читання")
-        raise WarehouseError(f"Drive відповів помилкою {code}")
-    return buf.getvalue()
+    return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
 
 def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
@@ -308,53 +315,30 @@ def read_source_sheet(sheets, sheet_id: str):
     return _finish_source(items, updated_at, notes, dups, used)
 
 
-def parse_source(blob: bytes):
-    """Розібрати .xlsx. Повертає (позиції, дата оновлення, примітки).
-
-    позиції = {канонічний_артикул: {"article", "model", "state", "qty"}}
-    """
-    try:
-        import openpyxl
-    except ImportError as e:  # noqa: BLE001
-        raise WarehouseError(f"немає бібліотеки openpyxl: {e}")
-
-    wb = openpyxl.load_workbook(io.BytesIO(blob), data_only=True)
-    items, notes, dups = {}, [], {}
-    updated_at = ""
-    sheets_used = 0
-
-    for ws in wb.worksheets:
-        rows = [[c.value for c in row] for row in ws.iter_rows()]
-        if not rows:
-            continue
-        # R1 — дата оновлення складу (18-та колонка першого рядка)
-        if not updated_at and len(rows[0]) > 17:
-            updated_at = _norm(rows[0][17])
-        if _collect_rows(rows, ws.title, items, notes, dups):
-            sheets_used += 1
-
-    return _finish_source(items, updated_at, notes, dups, sheets_used)
-
-
 def read_source(sheets):
-    """Прочитати склад: рідна таблиця, якщо задана, інакше .xlsx у Drive."""
-    if config.WAREHOUSE_SHEET_ID:
-        return read_source_sheet(sheets, config.WAREHOUSE_SHEET_ID)
-    if config.WAREHOUSE_FILE_ID:
-        creds = _credentials()
-        drive, _ = _services(creds)
-        return parse_source(download_source(drive, config.WAREHOUSE_FILE_ID))
-    raise WarehouseError("не задано ні WAREHOUSE_SHEET_ID, ні WAREHOUSE_FILE_ID")
+    """Прочитати складську таблицю."""
+    if not config.WAREHOUSE_SHEET_ID:
+        raise WarehouseError("не задано WAREHOUSE_SHEET_ID")
+    return read_source_sheet(sheets, config.WAREHOUSE_SHEET_ID)
 
 
 # ---------------------------------------------------------------- прайс
 
-def _tab_names():
-    """Вкладки прайсу, які синхронізуємо (config.WAREHOUSE_TABS)."""
+def _tab_names(sheets):
+    """Вкладки прайсу для синхронізації.
+
+    Якщо WAREHOUSE_TABS порожній — беремо ВСІ вкладки прайсу; ті, де немає
+    колонки залишку, однаково пропускаються за заголовком. Так нова вкладка
+    підхоплюється сама, а список не треба тримати в двох місцях.
+    """
     wanted = [t.strip() for t in (config.WAREHOUSE_TABS or "").split(",")
               if t.strip()]
-    known = [name for _, name in config.PRICELIST_TABS]
-    return [t for t in wanted if t in known] or wanted
+    if wanted:
+        return wanted
+    meta = sheets.spreadsheets().get(
+        spreadsheetId=config.PRICELIST_SHEET_ID,
+        fields="sheets(properties(title))").execute()
+    return [s["properties"]["title"] for s in meta.get("sheets", [])]
 
 
 def _desired(item) -> str | None:
@@ -368,7 +352,7 @@ def _desired(item) -> str | None:
     return None                         # невідомо — лишаємо як було
 
 
-def sync_tab(sheets, tab: str, items: dict, updated_at: str, report: dict):
+def sync_tab(sheets, tab: str, index: dict, updated_at: str, report: dict):
     """Звести одну вкладку прайсу. Пише лише змінені клітинки залишку."""
     got = sheets.spreadsheets().values().get(
         spreadsheetId=config.PRICELIST_SHEET_ID,
@@ -394,7 +378,10 @@ def sync_tab(sheets, tab: str, items: dict, updated_at: str, report: dict):
             continue
         key = article_key.canon(article)
         seen.add(key)
-        item = items.get(key)
+        item = index.get(key)
+        if item is not None and article_key.canon(item["article"]) != key:
+            # збіглося не як є, а за правилом суфікса — хай це буде видно
+            report.setdefault("by_rule", []).append(f"{item['article']} → {article}")
         if item is None:
             report["gone"].append(article)
         elif item["state"] == "unknown":
@@ -416,6 +403,7 @@ def sync_tab(sheets, tab: str, items: dict, updated_at: str, report: dict):
         report["clear_refused"] = len(clears)
     else:
         updates.extend(clears)
+        report["cleared"] = report.get("cleared", 0) + len(clears)
 
     # дата складу й час синхронізації — у клітинку НАД заголовком залишку
     stamp = f"'{tab}'!{letter}{hdr}"       # hdr — 0-based, тобто рядок вище
@@ -443,20 +431,19 @@ def sync_tab(sheets, tab: str, items: dict, updated_at: str, report: dict):
 
 def _sync_blocking() -> dict:
     """Уся робота з мережею. Синхронна — викликати через asyncio.to_thread."""
-    if not (config.WAREHOUSE_SHEET_ID or config.WAREHOUSE_FILE_ID):
-        raise WarehouseError("не задано ні WAREHOUSE_SHEET_ID, ні "
-                             "WAREHOUSE_FILE_ID")
-    creds = _credentials()
-    _, sheets = _services(creds)
+    if not config.WAREHOUSE_SHEET_ID:
+        raise WarehouseError("не задано WAREHOUSE_SHEET_ID")
+    sheets = _services(_credentials())
     items, updated_at, notes = read_source(sheets)
 
+    index, _ = build_index(items)
     report = {"written": 0, "tabs": [], "skipped": [], "gone": [], "unknown": [],
               "in_price": set(), "notes": notes, "source_rows": len(items),
-              "updated_at": updated_at}
+              "updated_at": updated_at, "cleared": 0}
     from googleapiclient.errors import HttpError
-    for tab in _tab_names():
+    for tab in _tab_names(sheets):
         try:
-            sync_tab(sheets, tab, items, updated_at, report)
+            sync_tab(sheets, tab, index, updated_at, report)
         except HttpError as e:
             code = getattr(e, "status_code", None) or e.resp.status
             if code == 400:
@@ -465,8 +452,9 @@ def _sync_blocking() -> dict:
                 raise WarehouseError(f"Sheets відповів помилкою {code}")
 
     # є в джерелі, немає в прайсі — не пишемо, повідомляємо
+    used = {id(index[k]) for k in report["in_price"] if k in index}
     report["extra"] = [f"{i['model'] or '?'} ({i['article']})"
-                       for k, i in items.items() if k not in report["in_price"]]
+                       for i in items.values() if id(i) not in used]
     report["noted"] = [f"{i['article']}: {i['note']}"
                        for i in items.values() if i.get("note")]
     report.pop("in_price")
@@ -486,6 +474,9 @@ def report_text(report: dict) -> str:
     lines += [f"Позицій у джерелі: {report['source_rows']}"]
     for t in report["tabs"]:
         lines.append(f"  • {t}")
+    if report.get("by_rule"):
+        lines.append(f"🔗 Зведено правилом суфікса: {len(report['by_rule'])} "
+                     f"(напр. {report['by_rule'][0]})")
     if report["skipped"]:
         lines.append("⚠️ Пропущено: " + "; ".join(report["skipped"]))
     if report["unknown"]:
@@ -496,7 +487,8 @@ def report_text(report: dict) -> str:
                      "складу «зникло» надто багато артикулів — схоже на різні "
                      "написання, а не на розпродаж. Треба звірити артикули")
     elif report["gone"]:
-        lines.append(f"🧹 Зникли з джерела, очищено: {len(report['gone'])}")
+        lines.append(f"🧹 Немає на складі: {len(report['gone'])} артикулів, "
+                     f"з них очищено клітинок: {report.get('cleared', 0)}")
     if report["extra"]:
         head = ", ".join(report["extra"][:8])
         more = f" і ще {len(report['extra']) - 8}" if len(report["extra"]) > 8 else ""
@@ -529,8 +521,8 @@ async def run_forever(bot=None):
     if period <= 0:
         log.info("Синхронізація складу вимкнена (WAREHOUSE_SYNC_SECONDS=0)")
         return
-    if not config.WAREHOUSE_FILE_ID:
-        log.info("Синхронізація складу вимкнена: не задано WAREHOUSE_FILE_ID")
+    if not config.WAREHOUSE_SHEET_ID:
+        log.info("Синхронізація складу вимкнена: не задано WAREHOUSE_SHEET_ID")
         return
     log.info("Залишки синхронізуються кожні %d с", period)
     delay = min(60, period)                 # перший прохід — невдовзі після старту
