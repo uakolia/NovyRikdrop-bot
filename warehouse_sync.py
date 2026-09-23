@@ -138,6 +138,25 @@ _WORD_SWAP = re.compile(r"^(.+?)-(\d+)\s+([A-Za-zА-Яа-яІіЇїЄєҐґ]+)$"
 # суфікс складу → суфікс прайсу (L = Люкс, P = Преміум: та сама лінійка)
 SUFFIX_ALIASES = {"L": "P"}
 
+# Назва моделі на складі → назва в прайсі. Це правило СИЛЬНІШЕ за точний збіг:
+# складський Cr6wide («N6 Wide») — це прайсовий Cr6G («Грандія»), хоч у прайсі
+# є й свій Cr6wide («Грандія Преміум»). Тому залишок іде в Cr6G, а прайсовий
+# Cr6wide лишається без даних (його залишок очиститься) — так підтвердив
+# власник. Без цього правила числа лягали б не тому товару.
+MODEL_ALIASES = {"CR6WIDE": "CR6G"}
+
+_BASE_SIZE = re.compile(r"^([A-Za-zА-Яа-яІіЇїЄєҐґ]+\d*[A-Za-zА-Яа-яІіЇїЄєҐґ]*)"
+                        r"-(\d+.*)$")
+
+
+def model_alias_key(article: str) -> str:
+    """Ключ прайсу за таблицею моделей, або "" — правило не підходить."""
+    m = _BASE_SIZE.match(_norm(article))
+    if not m:
+        return ""
+    alias = MODEL_ALIASES.get(article_key.canon(m.group(1)))
+    return article_key.canon(f"{alias}-{m.group(2)}") if alias else ""
+
 
 def alt_keys(article: str) -> list:
     """Канонічні ключі, під якими цей артикул може стояти в прайсі."""
@@ -157,12 +176,27 @@ def alt_keys(article: str) -> list:
 
 
 def build_index(items: dict):
-    """Ключ → позиція: спершу артикул як є, далі за правилами вище.
+    """Ключ прайсу → позиція складу.
 
-    Правило не перекриває вже наявний ключ, тож точний збіг завжди сильніший.
+    Порядок важливий:
+      • MODEL_ALIASES перекриває навіть точний збіг — інакше складський Cr6wide
+        ліг би у прайсовий Cr6wide, а має йти в Cr6G;
+      • далі артикул як є;
+      • далі правила суфікса й слова, але вони НЕ перекривають наявний ключ:
+        точний збіг сильніший за перестановку.
     """
-    index = dict(items)
+    index = {}
     for key, item in items.items():
+        alias = model_alias_key(item["article"])
+        # Псевдонім відступає, якщо на складі є власний рядок із цим артикулом:
+        # інакше два складських рядки боролися б за одну клітинку прайсу.
+        if alias and alias in items:
+            alias = ""
+        index[alias or key] = item
+    for key, item in items.items():
+        alias = model_alias_key(item["article"])
+        if alias and alias not in items:
+            continue                      # уже покладено за назвою моделі
         for alt in alt_keys(item["article"]):
             if alt and alt not in index:
                 index[alt] = item
