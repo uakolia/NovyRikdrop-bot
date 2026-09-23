@@ -65,8 +65,21 @@ MAX_CLEAR_SHARE = 0.3
 
 ARTICLE_HEADER = "article"
 
-# рядки-дублікат cr6custom із неправильними наявностями
-SKIP_SOURCE_ROWS = range(118, 128)
+# У колонці артикулів трапляються ПІДПИСИ блоків — «New York», «КОЛОБОК»,
+# «звичайна густа», «Alaska slim». Вони без розміру й без залишку і стоять
+# ПІСЛЯ свого блоку:
+#
+#     Cr6wide-150 … Cr6wide-300     ← блок
+#     New York                      ← підпис до нього (це «Грандія»)
+#     Cr6сustom-150 … Cr6сustom-280 ← блок
+#     КОЛОБОК                       ← підпис (цей блок не беремо)
+#     Cr6сustom-150 … Cr6сustom-280 ← той самий артикул, інші числа
+#     звичайна густа                ← підпис (саме цей блок правильний)
+#
+# Тому той самий артикул буває в кількох блоках, і вибір блоку задається
+# НАЗВОЮ підпису, а не номерами рядків: рядки зсуваються від кожної вставки,
+# назва — ні.
+SKIP_BLOCK_LABELS = {"колобок"}
 
 # «є» без числа
 YES_WORDS = {"так", "є", "yes", "+", "да", "in stock", "у наявності"}
@@ -267,21 +280,36 @@ def _services(creds):
 
 
 def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
-    """Розібрати рядки одного аркуша джерела в items. Спільне для .xlsx і Sheets.
+    """Розібрати аркуш джерела в items. Повертає True, якщо була колонка залишку.
 
-    Повертає True, якщо аркуш містив колонку залишку.
+    Рядки збираються у блоки: блок закінчується підписом (артикул без розміру),
+    і підпис стосується рядків ВИЩЕ нього. Блок із підписом зі SKIP_BLOCK_LABELS
+    відкидається цілком — там свідомо неправильні наявності.
     """
     hdr, cols = _find_header_row(rows, need_stock=True)
     if hdr is None or not cols:
         return False
+
     model = ""
-    skipped = []
-    for n, row in enumerate(rows[hdr + 1:], start=hdr + 2):
-        if n in SKIP_SOURCE_ROWS:
-            art_dbg = _norm(row[cols["article"]]) if len(row) > cols["article"] else ""
-            if art_dbg:
-                skipped.append(art_dbg)
-            continue
+    labels, skipped = [], []
+    block = []                        # накопичені рядки поточного блоку
+
+    def flush(label: str):
+        """Віддати накопичений блок в items або відкинути його за підписом."""
+        if label.lower() in SKIP_BLOCK_LABELS:
+            skipped.extend(a for a, _, _, _ in block)
+            block.clear()
+            return
+        for article, state, qty, note in block:
+            key = article_key.canon(article)
+            if key in items:
+                # той самий артикул уже був — беремо останній, але кажемо про це
+                dups.setdefault(article, []).append(label or title)
+            items[key] = {"article": article, "model": model, "state": state,
+                          "qty": qty, "note": note, "label": label}
+        block.clear()
+
+    for row in rows[hdr + 1:]:
         # назва моделі з об'єднаної клітинки — протягуємо вниз
         for cell in row[:cols["article"]]:
             text = _norm(cell)
@@ -293,19 +321,22 @@ def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
         article = _norm(row[cols["article"]])
         if len(article) < 3:
             continue
-        key = article_key.canon(article)
+        if not any(ch.isdigit() for ch in article):
+            labels.append(article)
+            flush(article)            # підпис закриває блок над собою
+            continue
         raw = row[cols["stock"]] if len(row) > cols["stock"] else None
         state, qty, note = parse_stock(raw)
-        if key in items:
-            # той самий артикул двічі — беремо ОСТАННІЙ рядок, але кажемо про це:
-            # тихо вибирати одне з двох чисел складу було б найгіршим варіантом
-            dups.setdefault(article, []).append(n)
-        items[key] = {"article": article, "model": model, "state": state,
-                      "qty": qty, "note": note, "row": n}
+        block.append((article, state, qty, note))
+    flush("")                          # хвіст без підпису
+
+    if labels:
+        notes.append(f"аркуш «{title}»: підписи блоків, не товари — "
+                     + ", ".join(dict.fromkeys(labels)))
     if skipped:
-        notes.append(f"аркуш «{title}»: пропущено рядки "
-                     f"{SKIP_SOURCE_ROWS.start}–{SKIP_SOURCE_ROWS.stop - 1} "
-                     f"({', '.join(dict.fromkeys(skipped))})")
+        notes.append(f"аркуш «{title}»: відкинуто блок "
+                     + "/".join(sorted(SKIP_BLOCK_LABELS)) + " — "
+                     + ", ".join(dict.fromkeys(skipped)))
     return True
 
 
@@ -428,12 +459,15 @@ def sync_tab(sheets, tab: str, index: dict, updated_at: str, report: dict):
         seen.add(key)
         item = index.get(key)
         if item is not None and article_key.canon(item["article"]) != key:
-            # збіглося не як є, а за правилом суфікса — хай це буде видно
+            # збіглося не як є, а за правилом — хай це буде видно
             report.setdefault("by_rule", []).append(f"{item['article']} → {article}")
         if item is None:
             report["gone"].append(article)
         elif item["state"] == "unknown":
-            report["unknown"].append(article)
+            # на складі клітинка порожня: ялинок немає або їх не рахували —
+            # таку позицію не чіпаємо взагалі, лише рахуємо для звіту
+            report["untouched"] = report.get("untouched", 0) + 1
+            continue
         want = _desired(item)
         if want is None:
             continue
@@ -527,9 +561,8 @@ def report_text(report: dict) -> str:
                      f"(напр. {report['by_rule'][0]})")
     if report["skipped"]:
         lines.append("⚠️ Пропущено: " + "; ".join(report["skipped"]))
-    if report["unknown"]:
-        lines.append(f"❔ Без числа в джерелі (лишили як було): "
-                     f"{len(report['unknown'])}")
+    if report.get("untouched"):
+        lines.append(f"⏭ Без числа на складі — не чіпали: {report['untouched']}")
     if report.get("clear_refused"):
         lines.append(f"🛑 НЕ чистив {report['clear_refused']} клітинок: зі "
                      "складу «зникло» надто багато артикулів — схоже на різні "
