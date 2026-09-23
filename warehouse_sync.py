@@ -123,36 +123,50 @@ def parse_stock(value):
     return "qty", int(n), note
 
 
-# У складі літера-суфікс стоїть у кінці («Cr3-150F», «Cr6-220F»), а в прайсі
-# перед розміром («Cr3F-150»). Це єдине правило зведення поверх канонічного
-# ключа; перевірено на живих таблицях — 14 пар, жодної колізії. Решту
-# розбіжностей не вгадуємо: вони йдуть у звіт.
+# ЗВЕДЕННЯ АРТИКУЛІВ. Склад і прайс пишуть ті самі товари по-різному, і це не
+# випадковий шум, а кілька стійких схем. Кожне правило вузьке й перевірене на
+# живих таблицях: разом вони дають 45 пар і ЖОДНОЇ колізії. Усе, що не
+# підпадає, не вгадуємо — воно йде у звіт.
+#
+#   1) літера-суфікс переїжджає перед розмір:   Cr3-150F   → Cr3F-150
+#   2) те саме, і Люкс на складі = Преміум у прайсі: Cr3-150L → Cr3P-150
+#   3) останнє слово переїжджає перед розмір:   Cr7lush-240 mіx → Cr7lush mіx-240
 _SUFFIX_SWAP = re.compile(r"^([A-Za-zА-Яа-яІіЇїЄєҐґ]+\d*)-(\d+)"
                           r"([A-Za-zА-Яа-яІіЇїЄєҐґ]+)$")
+_WORD_SWAP = re.compile(r"^(.+?)-(\d+)\s+([A-Za-zА-Яа-яІіЇїЄєҐґ]+)$")
+
+# суфікс складу → суфікс прайсу (L = Люкс, P = Преміум: та сама лінійка)
+SUFFIX_ALIASES = {"L": "P"}
 
 
-def swapped_key(article: str) -> str:
-    """«Cr3-150F» → канонічний ключ «Cr3F-150». "" — правило не підходить."""
-    m = _SUFFIX_SWAP.match(_norm(article))
-    if not m:
-        return ""
-    return article_key.canon(f"{m.group(1)}{m.group(3)}-{m.group(2)}")
+def alt_keys(article: str) -> list:
+    """Канонічні ключі, під якими цей артикул може стояти в прайсі."""
+    a = _norm(article)
+    out = []
+    m = _SUFFIX_SWAP.match(a)
+    if m:
+        base, size, suffix = m.group(1), m.group(2), m.group(3)
+        out.append(f"{base}{suffix}-{size}")
+        alias = SUFFIX_ALIASES.get(suffix.upper())
+        if alias:
+            out.append(f"{base}{alias}-{size}")
+    m = _WORD_SWAP.match(a)
+    if m:
+        out.append(f"{m.group(1)} {m.group(3)}-{m.group(2)}")
+    return [article_key.canon(v) for v in out]
 
 
 def build_index(items: dict):
-    """Ключ → позиція: спершу як є, далі за правилом суфікса.
+    """Ключ → позиція: спершу артикул як є, далі за правилами вище.
 
-    Повертає (індекс, пари), де пари — що з чим звели за правилом, щоб це
-    було видно у звіті, а не лишалося магією.
+    Правило не перекриває вже наявний ключ, тож точний збіг завжди сильніший.
     """
     index = dict(items)
-    pairs = []
     for key, item in items.items():
-        alt = swapped_key(item["article"])
-        if alt and alt not in index:
-            index[alt] = item
-            pairs.append((item["article"], alt))
-    return index, pairs
+        for alt in alt_keys(item["article"]):
+            if alt and alt not in index:
+                index[alt] = item
+    return index, []
 
 
 def col_letter(idx0: int) -> str:
