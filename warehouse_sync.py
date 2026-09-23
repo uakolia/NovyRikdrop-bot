@@ -1,8 +1,14 @@
 """Перенесення залишків зі складської таблиці в наш прайс.
 
-ДЖЕРЕЛО — .xlsx у Drive (не рідна Google-таблиця), тому читаємо через
-files().get_media() і openpyxl. ПРИЙМАЧ — наш прайс, рідна Google-таблиця,
-пишемо через Sheets API.
+ДЖЕРЕЛО може бути двох видів, і читаються вони по-різному:
+  • рідна Google-таблиця (WAREHOUSE_SHEET_ID) — через Sheets API. Так простіше
+    й надійніше: API віддає порахованi значення формул, тож пастка з кешем не
+    виникає взагалі;
+  • .xlsx у Drive (WAREHOUSE_FILE_ID) — через files().get_media() (а НЕ
+    export_media, той лише для Google-файлів) і openpyxl з data_only=True.
+Якщо задано обидва, береться рідна таблиця.
+
+ПРИЙМАЧ — наш прайс, рідна Google-таблиця, пишемо через Sheets API.
 
 Прайс — джерело правди для цін. Тому пишемо ТІЛЬКИ в колонку «К-сть на складі»,
 знайдену за заголовком, і ніколи за індексом: у кожній вкладці своя розкладка
@@ -38,15 +44,25 @@ import config
 
 log = logging.getLogger(__name__)
 
-# Як може називатися колонка залишку. Звіряємо ПОВНИЙ текст заголовка, а не
-# підрядок: у прайсі є цінова колонка «Дроп 3 — товар у наявності на складі»,
-# і пошук за «склад» записав би залишки просто в ціни.
-STOCK_HEADERS = {
-    "к-сть на складі", "кількість на складі", "кількість", "кількістсь",
-    "наявність", "залишок", "залишки",
-}
-# заголовок із цими словами — не залишок, хай там що ще в ньому написано
-PRICE_WORDS = ("ціна", "дроп", "price", "грн", "euro", "євро")
+# Як може називатися колонка залишку. Назви в таблицях правлять руками:
+# бачили «К-сть на складі», «наявності», «кількістсь». Тому шукаємо за коренем
+# слова, а не за точним текстом.
+STOCK_STEMS = ("к-сть на склад", "кількість на склад", "кількіст", "наявн",
+               "залиш", "на складі")
+
+# Заголовок із цими словами — НЕ залишок, хай там що ще в ньому написано.
+# Без цього пошук «склад» вибрав би цінову колонку «Дроп 3 — товар у наявності
+# на складі» і бот записав би залишки просто в ціни.
+NOT_STOCK_WORDS = ("ціна", "дроп", "price", "грн", "euro", "євро", "usd", "uah",
+                   "сегмент", "гілк", "branch", "tips", "part", "вітк",
+                   "передзамовлен", "гуртов")
+
+# довгий заголовок — це радше опис умов продажу, ніж назва колонки залишку
+MAX_STOCK_HEADER = 30
+
+# якщо «зникла» зі складу більша частка артикулів, ніж ця — не чистимо нічого:
+# схоже не на розпродаж, а на розбіжність написання артикулів
+MAX_CLEAR_SHARE = 0.3
 
 ARTICLE_HEADER = "article"
 
@@ -74,23 +90,39 @@ def _norm(s) -> str:
     return re.sub(r"\s+", " ", str(s if s is not None else "")).strip()
 
 
+# перше число в клітинці залишку
+_FIRST_NUMBER = re.compile(r"-?\d+(?:[.,]\d+)?")
+
+
 def parse_stock(value):
-    """Клітинка залишку → (стан, число). Стани: qty / yes / unknown."""
-    s = _norm(value).lower()
-    if not s:
-        return "unknown", None
-    if s in YES_WORDS:
-        return "yes", None
-    cleaned = re.sub(r"[^\d,.-]", "", s.replace("\xa0", "").replace(" ", ""))
-    cleaned = cleaned.replace(",", ".")
-    try:
-        n = float(cleaned)
-    except ValueError:
+    """Клітинка залишку → (стан, число, примітка). Стани: qty / yes / unknown.
+
+    На складі пишуть не лише числа: «9 (+5 блакитна)», «12 шт», «2-3». Беремо
+    ПЕРШЕ число, а не всі цифри підряд, — інакше «9 (+5 блакитна)» склеїлося б
+    у 95 і залишок роздувся б у десять разів.
+
+    Примітка — те, що лишилося від тексту («+5 блакитна»). У прайс не йде, але
+    потрапляє у звіт, щоб такі уточнення не пропадали безслідно.
+    """
+    s = _norm(value).replace("\xa0", " ")
+    low = s.lower()
+    if not low:
+        return "unknown", None, ""
+    if low in YES_WORDS:
+        return "yes", None, ""
+    m = _FIRST_NUMBER.search(low)
+    if m is None:
         # текст на кшталт «під замовлення» — не число і не «є»
-        return "yes" if any(w in s for w in YES_WORDS) else "unknown", None
+        state = "yes" if any(w in low for w in YES_WORDS) else "unknown"
+        return state, None, s
+    try:
+        n = float(m.group(0).replace(",", "."))
+    except ValueError:
+        return "unknown", None, s
     if n < 0:
-        return "unknown", None
-    return "qty", int(n)
+        return "unknown", None, s
+    note = (low[:m.start()] + low[m.end():]).strip(" ()шт.,")
+    return "qty", int(n), note
 
 
 def col_letter(idx0: int) -> str:
@@ -114,8 +146,13 @@ def _find_header_row(rows, need_stock: bool):
             continue
         cols = {"article": low.index(ARTICLE_HEADER)}
         for j, c in enumerate(low):
-            if c in STOCK_HEADERS and not any(w in c for w in PRICE_WORDS):
+            if not c or len(c) > MAX_STOCK_HEADER:
+                continue
+            if any(w in c for w in NOT_STOCK_WORDS):
+                continue
+            if any(c.startswith(st) or st in c for st in STOCK_STEMS):
                 cols["stock"] = j
+                cols["stock_header"] = c
                 break
         if need_stock and "stock" not in cols:
             return i, None            # заголовок знайшли, колонки залишку немає
@@ -174,6 +211,103 @@ def download_source(drive, file_id: str) -> bytes:
     return buf.getvalue()
 
 
+def _collect_rows(rows, title: str, items: dict, notes: list, dups: dict):
+    """Розібрати рядки одного аркуша джерела в items. Спільне для .xlsx і Sheets.
+
+    Повертає True, якщо аркуш містив колонку залишку.
+    """
+    hdr, cols = _find_header_row(rows, need_stock=True)
+    if hdr is None or not cols:
+        return False
+    model = ""
+    skipped = []
+    for n, row in enumerate(rows[hdr + 1:], start=hdr + 2):
+        if n in SKIP_SOURCE_ROWS:
+            art_dbg = _norm(row[cols["article"]]) if len(row) > cols["article"] else ""
+            if art_dbg:
+                skipped.append(art_dbg)
+            continue
+        # назва моделі з об'єднаної клітинки — протягуємо вниз
+        for cell in row[:cols["article"]]:
+            text = _norm(cell)
+            if text and "/" in text and not text.startswith("http"):
+                model = text
+                break
+        if len(row) <= cols["article"]:
+            continue
+        article = _norm(row[cols["article"]])
+        if len(article) < 3:
+            continue
+        key = article_key.canon(article)
+        raw = row[cols["stock"]] if len(row) > cols["stock"] else None
+        state, qty, note = parse_stock(raw)
+        if key in items:
+            # той самий артикул двічі — беремо ОСТАННІЙ рядок, але кажемо про це:
+            # тихо вибирати одне з двох чисел складу було б найгіршим варіантом
+            dups.setdefault(article, []).append(n)
+        items[key] = {"article": article, "model": model, "state": state,
+                      "qty": qty, "note": note, "row": n}
+    if skipped:
+        notes.append(f"аркуш «{title}»: пропущено рядки "
+                     f"{SKIP_SOURCE_ROWS.start}–{SKIP_SOURCE_ROWS.stop - 1} "
+                     f"({', '.join(dict.fromkeys(skipped))})")
+    return True
+
+
+def _finish_source(items: dict, updated_at: str, notes: list, dups: dict,
+                   sheets_used: int):
+    """Спільні перевірки після розбору джерела."""
+    if not sheets_used:
+        raise WarehouseError("у джерелі не знайдено колонки залишку (шукали "
+                             "заголовок зі словами: "
+                             + ", ".join(STOCK_STEMS)
+                             + ") — структуру змінили?")
+    if not items:
+        raise WarehouseError("у джерелі немає жодного артикула")
+    known = [i for i in items.values() if i["state"] != "unknown"]
+    if not known:
+        raise WarehouseError(
+            f"стовпець залишку порожній у всіх {len(items)} рядках — це схоже "
+            "на відсутність кешу формул, а не на розпродаж. Прайс не чіпаємо")
+    for article, rows_list in dups.items():
+        notes.append(f"дубльований артикул {article}: рядки "
+                     f"{', '.join(str(r) for r in rows_list)} — узяли останній")
+    return items, updated_at, notes
+
+
+def read_source_sheet(sheets, sheet_id: str):
+    """Джерело — рідна Google-таблиця. Повертає (позиції, дата, примітки)."""
+    from googleapiclient.errors import HttpError
+    try:
+        meta = sheets.spreadsheets().get(
+            spreadsheetId=sheet_id,
+            fields="sheets(properties(title))").execute()
+    except HttpError as e:
+        code = getattr(e, "status_code", None) or e.resp.status
+        if code == 404:
+            raise WarehouseError("складської таблиці не знайдено — перевірте "
+                                 "WAREHOUSE_SHEET_ID")
+        if code in (401, 403):
+            raise WarehouseError("немає доступу до складської таблиці — дайте "
+                                 "службовому акаунту право читання")
+        raise WarehouseError(f"Sheets відповів помилкою {code}")
+
+    titles = [s["properties"]["title"] for s in meta.get("sheets", [])]
+    items, notes, dups = {}, [], {}
+    updated_at = ""
+    used = 0
+    for title in titles:
+        rows = sheets.spreadsheets().values().get(
+            spreadsheetId=sheet_id, range=f"'{title}'").execute().get("values", [])
+        if not rows:
+            continue
+        if not updated_at and len(rows[0]) > 17:
+            updated_at = _norm(rows[0][17])      # R1 — «станом на …»
+        if _collect_rows(rows, title, items, notes, dups):
+            used += 1
+    return _finish_source(items, updated_at, notes, dups, used)
+
+
 def parse_source(blob: bytes):
     """Розібрати .xlsx. Повертає (позиції, дата оновлення, примітки).
 
@@ -185,7 +319,7 @@ def parse_source(blob: bytes):
         raise WarehouseError(f"немає бібліотеки openpyxl: {e}")
 
     wb = openpyxl.load_workbook(io.BytesIO(blob), data_only=True)
-    items, notes = {}, []
+    items, notes, dups = {}, [], {}
     updated_at = ""
     sheets_used = 0
 
@@ -196,54 +330,21 @@ def parse_source(blob: bytes):
         # R1 — дата оновлення складу (18-та колонка першого рядка)
         if not updated_at and len(rows[0]) > 17:
             updated_at = _norm(rows[0][17])
-        hdr, cols = _find_header_row(rows, need_stock=True)
-        if hdr is None or not cols:
-            continue
-        sheets_used += 1
-        model = ""
-        skipped = []
-        for n, row in enumerate(rows[hdr + 1:], start=hdr + 2):
-            if n in SKIP_SOURCE_ROWS:
-                art_dbg = _norm(row[cols["article"]]) if len(row) > cols["article"] else ""
-                if art_dbg:
-                    skipped.append(art_dbg)
-                continue
-            # назва моделі з об'єднаної клітинки — протягуємо вниз
-            for cell in row[:cols["article"]]:
-                text = _norm(cell)
-                if text and "/" in text and not text.startswith("http"):
-                    model = text
-                    break
-            if len(row) <= cols["article"]:
-                continue
-            article = _norm(row[cols["article"]])
-            if len(article) < 3:
-                continue
-            raw = row[cols["stock"]] if len(row) > cols["stock"] else None
-            state, qty = parse_stock(raw)
-            items[article_key.canon(article)] = {
-                "article": article, "model": model, "state": state, "qty": qty,
-            }
-        if skipped:
-            notes.append(f"аркуш «{ws.title}»: пропущено рядки "
-                         f"{SKIP_SOURCE_ROWS.start}–{SKIP_SOURCE_ROWS.stop - 1} "
-                         f"({', '.join(skipped[:6])})")
+        if _collect_rows(rows, ws.title, items, notes, dups):
+            sheets_used += 1
 
-    if not sheets_used:
-        raise WarehouseError("у файлі складу не знайдено колонки залишку "
-                             "(шукали: " + ", ".join(sorted(STOCK_HEADERS))
-                             + ") — структуру змінили?")
-    if not items:
-        raise WarehouseError("у файлі складу немає жодного артикула")
+    return _finish_source(items, updated_at, notes, dups, sheets_used)
 
-    known = [i for i in items.values() if i["state"] != "unknown"]
-    if not known:
-        # data_only=True без кешу формул віддає суцільні None
-        raise WarehouseError(
-            f"стовпець залишку порожній у всіх {len(items)} рядках — це схоже "
-            "на відсутність кешу формул, а не на розпродаж. Прайс не чіпаємо; "
-            "відкрийте файл складу в Excel, збережіть і повторіть")
-    return items, updated_at, notes
+
+def read_source(sheets):
+    """Прочитати склад: рідна таблиця, якщо задана, інакше .xlsx у Drive."""
+    if config.WAREHOUSE_SHEET_ID:
+        return read_source_sheet(sheets, config.WAREHOUSE_SHEET_ID)
+    if config.WAREHOUSE_FILE_ID:
+        creds = _credentials()
+        drive, _ = _services(creds)
+        return parse_source(download_source(drive, config.WAREHOUSE_FILE_ID))
+    raise WarehouseError("не задано ні WAREHOUSE_SHEET_ID, ні WAREHOUSE_FILE_ID")
 
 
 # ---------------------------------------------------------------- прайс
@@ -278,11 +379,13 @@ def sync_tab(sheets, tab: str, items: dict, updated_at: str, report: dict):
         report["skipped"].append(f"{tab}: не знайдено рядок заголовка")
         return
     if not cols:
-        report["skipped"].append(f"{tab}: немає колонки «К-сть на складі»")
+        report["skipped"].append(
+            f"{tab}: немає колонки залишку (шукали заголовок зі словами: "
+            + ", ".join(STOCK_STEMS) + ")")
         return
 
     letter = col_letter(cols["stock"])
-    updates, seen = [], set()
+    updates, clears, seen = [], [], set()
     for n, row in enumerate(rows[hdr + 1:], start=hdr + 2):
         if len(row) <= cols["article"]:
             continue
@@ -302,14 +405,26 @@ def sync_tab(sheets, tab: str, items: dict, updated_at: str, report: dict):
         current = _norm(row[cols["stock"]]) if len(row) > cols["stock"] else ""
         if current == want:
             continue
-        updates.append({"range": f"'{tab}'!{letter}{n}",
-                        "values": [[want]]})
+        upd = {"range": f"'{tab}'!{letter}{n}", "values": [[want]]}
+        (clears if item is None and current else updates).append(upd)
+
+    # Очищення — найнебезпечніша дія: якщо артикулів «зникло» підозріло багато,
+    # це радше різні написання (у прайсі Cr3F-150, на складі Cr3-150F), ніж
+    # розпродаж. Тоді нічого не чистимо й кажемо про це.
+    rows_seen = max(len(seen), 1)
+    if clears and len(clears) / rows_seen > MAX_CLEAR_SHARE:
+        report["clear_refused"] = len(clears)
+    else:
+        updates.extend(clears)
 
     # дата складу й час синхронізації — у клітинку НАД заголовком залишку
     stamp = f"'{tab}'!{letter}{hdr}"       # hdr — 0-based, тобто рядок вище
     parts = []
     if updated_at:
-        parts.append(f"Склад від {updated_at}")
+        # у R1 буває вже готовий текст «станом на 18 09 2026» — не дублюємо
+        low = updated_at.lower()
+        parts.append(updated_at if low.startswith(("станом", "склад"))
+                     else f"Склад від {updated_at}")
     parts.append(f"синхр. {config.now().strftime('%d.%m.%Y %H:%M')}")
     updates.append({"range": stamp, "values": [[" · ".join(parts)]]})
 
@@ -319,7 +434,8 @@ def sync_tab(sheets, tab: str, items: dict, updated_at: str, report: dict):
             body={"valueInputOption": "USER_ENTERED", "data": updates},
         ).execute()
     report["written"] += len(updates) - 1          # позначка часу не рахується
-    report["tabs"].append(f"{tab}: {len(updates) - 1} змін")
+    report["tabs"].append(f"{tab}: {len(updates) - 1} змін "
+                          f"(колонка {letter} «{cols.get('stock_header', '?')}»)")
     report["in_price"] |= seen
 
 
@@ -327,12 +443,12 @@ def sync_tab(sheets, tab: str, items: dict, updated_at: str, report: dict):
 
 def _sync_blocking() -> dict:
     """Уся робота з мережею. Синхронна — викликати через asyncio.to_thread."""
-    if not config.WAREHOUSE_FILE_ID:
-        raise WarehouseError("не задано WAREHOUSE_FILE_ID")
+    if not (config.WAREHOUSE_SHEET_ID or config.WAREHOUSE_FILE_ID):
+        raise WarehouseError("не задано ні WAREHOUSE_SHEET_ID, ні "
+                             "WAREHOUSE_FILE_ID")
     creds = _credentials()
-    drive, sheets = _services(creds)
-    blob = download_source(drive, config.WAREHOUSE_FILE_ID)
-    items, updated_at, notes = parse_source(blob)
+    _, sheets = _services(creds)
+    items, updated_at, notes = read_source(sheets)
 
     report = {"written": 0, "tabs": [], "skipped": [], "gone": [], "unknown": [],
               "in_price": set(), "notes": notes, "source_rows": len(items),
@@ -351,6 +467,8 @@ def _sync_blocking() -> dict:
     # є в джерелі, немає в прайсі — не пишемо, повідомляємо
     report["extra"] = [f"{i['model'] or '?'} ({i['article']})"
                        for k, i in items.items() if k not in report["in_price"]]
+    report["noted"] = [f"{i['article']}: {i['note']}"
+                       for i in items.values() if i.get("note")]
     report.pop("in_price")
     return report
 
@@ -373,12 +491,19 @@ def report_text(report: dict) -> str:
     if report["unknown"]:
         lines.append(f"❔ Без числа в джерелі (лишили як було): "
                      f"{len(report['unknown'])}")
-    if report["gone"]:
+    if report.get("clear_refused"):
+        lines.append(f"🛑 НЕ чистив {report['clear_refused']} клітинок: зі "
+                     "складу «зникло» надто багато артикулів — схоже на різні "
+                     "написання, а не на розпродаж. Треба звірити артикули")
+    elif report["gone"]:
         lines.append(f"🧹 Зникли з джерела, очищено: {len(report['gone'])}")
     if report["extra"]:
         head = ", ".join(report["extra"][:8])
         more = f" і ще {len(report['extra']) - 8}" if len(report["extra"]) > 8 else ""
         lines.append(f"➕ Є на складі, немає в прайсі: {head}{more}")
+    if report.get("noted"):
+        lines.append("📝 Уточнення в клітинках складу: "
+                     + "; ".join(report["noted"][:5]))
     for n in report.get("notes", []):
         lines.append(f"ℹ️ {n}")
     return "\n".join(lines)

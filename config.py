@@ -73,7 +73,10 @@ SHEET_SYNC_SECONDS = int(os.getenv("SHEET_SYNC_SECONDS", "600"))
 # як часто перепитувати статуси ТТН у Нової Пошти, секунд (0 — не опитувати)
 TTN_POLL_SECONDS = int(os.getenv("TTN_POLL_SECONDS", "3600"))
 
-# Склад: .xlsx у Drive, з якого переносимо залишки в прайс
+# Склад, звідки переносимо залишки. Рідна Google-таблиця має пріоритет:
+# її читаємо через Sheets API, і пастки з кешем формул там не існує.
+WAREHOUSE_SHEET_ID = os.getenv("WAREHOUSE_SHEET_ID", "")
+# .xlsx у Drive — запасний варіант, читається через openpyxl
 WAREHOUSE_FILE_ID = os.getenv("WAREHOUSE_FILE_ID", "")
 # як часто переносити залишки, секунд (0 — не переносити).
 # Поки інтеграцію не перевірено на живому файлі — типово ВИМКНЕНО: увімкнути
