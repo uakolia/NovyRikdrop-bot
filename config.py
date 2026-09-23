@@ -75,8 +75,10 @@ TTN_POLL_SECONDS = int(os.getenv("TTN_POLL_SECONDS", "3600"))
 
 # Склад: .xlsx у Drive, з якого переносимо залишки в прайс
 WAREHOUSE_FILE_ID = os.getenv("WAREHOUSE_FILE_ID", "")
-# як часто переносити залишки, секунд (0 — не переносити)
-WAREHOUSE_SYNC_SECONDS = int(os.getenv("WAREHOUSE_SYNC_SECONDS", "3600"))
+# як часто переносити залишки, секунд (0 — не переносити).
+# Поки інтеграцію не перевірено на живому файлі — типово ВИМКНЕНО: увімкнути
+# можна змінною WAREHOUSE_SYNC_SECONDS=3600. Ручний /sync_stock працює завжди.
+WAREHOUSE_SYNC_SECONDS = int(os.getenv("WAREHOUSE_SYNC_SECONDS", "0"))
 # вкладки прайсу, куди дозволено писати залишок (решту не чіпаємо)
 WAREHOUSE_TABS = os.getenv("WAREHOUSE_TABS",
                            "PE Umbrella System,Christmas tree in a pot")
