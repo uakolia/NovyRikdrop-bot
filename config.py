@@ -73,6 +73,16 @@ SHEET_SYNC_SECONDS = int(os.getenv("SHEET_SYNC_SECONDS", "600"))
 # як часто перепитувати статуси ТТН у Нової Пошти, секунд (0 — не опитувати)
 TTN_POLL_SECONDS = int(os.getenv("TTN_POLL_SECONDS", "3600"))
 
+# Склад: .xlsx у Drive, з якого переносимо залишки в прайс
+WAREHOUSE_FILE_ID = os.getenv("WAREHOUSE_FILE_ID", "")
+# як часто переносити залишки, секунд (0 — не переносити)
+WAREHOUSE_SYNC_SECONDS = int(os.getenv("WAREHOUSE_SYNC_SECONDS", "3600"))
+# вкладки прайсу, куди дозволено писати залишок (решту не чіпаємо)
+WAREHOUSE_TABS = os.getenv("WAREHOUSE_TABS",
+                           "PE Umbrella System,Christmas tree in a pot")
+# ключ службового акаунта Google: сам JSON або шлях до файла
+GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
 # Google Sheet прайс-лист (для /reload)
 PRICELIST_SHEET_ID = os.getenv("PRICELIST_SHEET_ID", "18OkfzTnujb_VFTX0UuDlkEwCBNiR1pFy5OeafHugYFg")
 # вкладки прайсу: (gid, назва). Номер видно в URL таблиці: #gid=...

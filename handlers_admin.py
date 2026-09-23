@@ -30,6 +30,24 @@ class NPSetup(StatesGroup):
     wh_pick = State()
 
 
+@router.message(Command("sync_stock"))
+async def cmd_sync_stock(msg: Message):
+    """Перенести залишки зі складської таблиці в прайс прямо зараз."""
+    if not _is_admin(msg.from_user.id):
+        return
+    import warehouse_sync
+    await msg.answer("⏳ Читаю складську таблицю…")
+    try:
+        report = await warehouse_sync.sync_once()
+    except warehouse_sync.WarehouseError as e:
+        await msg.answer(f"⚠️ <b>Залишки не синхронізовано</b>\n{e}")
+        return
+    except Exception as e:  # noqa: BLE001
+        await msg.answer(f"⚠️ Не вдалося: {e}")
+        return
+    await msg.answer(warehouse_sync.report_text(report)[:4000])
+
+
 @router.message(Command("np_sync"))
 async def cmd_np_sync(msg: Message):
     """Перевірити статуси НП прямо зараз, не чекаючи щогодинного циклу."""

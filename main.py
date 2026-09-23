@@ -14,6 +14,7 @@ import catalog, config
 import http_client
 import np_tracking
 import stock
+import warehouse_sync
 import storage
 import handlers_admin as admin
 import handlers_order as order
@@ -117,6 +118,7 @@ async def main():
     await check_stock_articles()
     poller = asyncio.create_task(np_tracking.run_forever(bot))
     syncer = asyncio.create_task(sync_forever())
+    wh_syncer = asyncio.create_task(warehouse_sync.run_forever(bot))
 
     # HTTP-сервер (health-check для хостингу + вебхук Weblium)
     app = make_app(bot)
@@ -131,6 +133,7 @@ async def main():
     finally:
         poller.cancel()
         syncer.cancel()
+        wh_syncer.cancel()
         await runner.cleanup()
         await http_client.close()      # одна спільна сесія на весь бот
 
