@@ -30,6 +30,35 @@ class NPSetup(StatesGroup):
     wh_pick = State()
 
 
+@router.message(Command("ttn"))
+async def cmd_ttn(msg: Message):
+    """/ttn <номер> — створити накладну для вже записаного замовлення."""
+    if not _is_admin(msg.from_user.id):
+        return
+    parts = msg.text.split()
+    if len(parts) < 2 or not parts[1].strip().isdigit():
+        await msg.answer("Використання: <code>/ttn 7</code> — створити накладну "
+                         "для замовлення №7.\nЯкщо накладна вже є, а потрібна "
+                         "нова: <code>/ttn 7 force</code>")
+        return
+    order_no = parts[1].strip()
+    force = len(parts) > 2 and parts[2].lower() in ("force", "-f", "заново")
+    import ttn_retry
+    await msg.answer(f"⏳ Шукаю замовлення №{order_no} і створюю накладну…")
+    try:
+        rows, res = await ttn_retry.create_for_order(order_no, force=force)
+    except ttn_retry.RetryError as e:
+        await msg.answer(f"⚠️ <b>Накладну не створено</b>\n{e}")
+        return
+    except np.NPError as e:
+        await msg.answer(f"⚠️ Нова Пошта відмовила: {e}")
+        return
+    except Exception as e:  # noqa: BLE001
+        await msg.answer(f"⚠️ Не вдалося: {e}")
+        return
+    await msg.answer(ttn_retry.report(order_no, rows, res)[:4000])
+
+
 @router.message(Command("sync_stock"))
 async def cmd_sync_stock(msg: Message):
     """Перенести залишки зі складської таблиці в прайс прямо зараз."""
