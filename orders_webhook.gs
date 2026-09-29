@@ -636,7 +636,8 @@ function doGet(e) {
   }
 
   if (what === "orders") {
-    var id = String((e.parameter && e.parameter.id) || "");
+    var id = String((e.parameter && e.parameter.id) || "").trim();
+    if (id === "0") id = "";        // «0» означає «усі», а не дропшипер з ID 0
     var limit = parseInt((e.parameter && e.parameter.limit) || "10", 10) || 10;
     var osh = sheet_(ORDERS_SHEET, ORDER_HEADERS);
     var lastRow = osh.getLastRow();

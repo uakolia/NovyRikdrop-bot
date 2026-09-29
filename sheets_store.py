@@ -210,7 +210,14 @@ async def fetch_dropshippers():
 
 
 async def fetch_orders(user_id: int, limit: int = 10):
-    data, err = await _get({"what": "orders", "id": str(user_id),
+    """Замовлення дропшипера; user_id 0/None — усі замовлення.
+
+    «Без фільтра» передаємо ПОРОЖНІМ рядком, а не нулем: у скрипті стоїть
+    перевірка if (id && …), а рядок "0" у JavaScript істинний, тож скрипт
+    шукав би замовлення дропшипера з ID 0 і повертав порожньо.
+    """
+    data, err = await _get({"what": "orders",
+                            "id": str(user_id) if user_id else "",
                             "limit": str(limit)})
     if err:
         return None, err

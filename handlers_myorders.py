@@ -159,7 +159,7 @@ async def cmd_all_orders(msg: Message):
         return
     rows, err = (None, None)
     if sheets_store.enabled():
-        rows, err = await sheets_store.fetch_orders(0, 10)  # id=0 → без фільтра
+        rows, err = await sheets_store.fetch_orders(0, 10)   # 0 — усі дропшипери
     if not rows:
         await msg.answer("Замовлень не знайдено." + (f"\n⚠️ {err}" if err else ""))
         return
