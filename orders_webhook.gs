@@ -165,6 +165,29 @@ function trim_(v) {
   return (v === null || v === undefined) ? "" : String(v).trim();
 }
 
+/**
+ * Рядок замовлення за номером і артикулом, або -1.
+ * Ключ складений: у замовленні з кількох позицій номер той самий.
+ */
+function findOrderRow_(sh, orderNo, article) {
+  var last = sh.getLastRow();
+  if (last < 2 || orderNo === "" || orderNo === null ||
+      orderNo === undefined) {
+    return -1;
+  }
+  var want = String(orderNo).trim();
+  var wantArt = canonArticle_(article);
+  var noCol = orderCol_("order_no");
+  var artCol = orderCol_("article");
+  var vals = sh.getRange(2, 1, last - 1,
+                         Math.max(noCol, artCol)).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    if (String(vals[i][noCol - 1] || "").trim() !== want) continue;
+    if (canonArticle_(vals[i][artCol - 1]) === wantArt) return i + 2;
+  }
+  return -1;
+}
+
 function doPost(e) {
   var data;
   try {
@@ -251,9 +274,19 @@ function doPost(e) {
     for (var f in items[n]) {
       line[f] = items[n][f];
     }
-    osh.appendRow(ORDER_KEYS.map(function (key) {
+    var values = ORDER_KEYS.map(function (key) {
       return line[key] !== undefined ? line[key] : "";
-    }));
+    });
+    // Ідемпотентність: якщо рядок із таким номером і артикулом уже є —
+    // перезаписуємо його, а не додаємо другий. Apshts Script інколи виконує
+    // запис, але відповідь до бота не доїжджає (переадресація на
+    // googleusercontent віддає 404), бот вважає запис невдалим і повторює.
+    var existing = findOrderRow_(osh, line.order_no, line.article);
+    if (existing > 0) {
+      osh.getRange(existing, 1, 1, values.length).setValues([values]);
+    } else {
+      osh.appendRow(values);
+    }
     written++;
     // дублюємо в таблицю дропшипера; збій експорту не має валити замовлення
     try {

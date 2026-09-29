@@ -16,7 +16,9 @@
   POST {type: "ttn_status", updates: [{ttn, np_status}]}
   POST {type: "alias", ...}        — додати/оновити власну назву
 """
+import asyncio
 import json
+import logging
 import re
 
 import aiohttp
@@ -25,10 +27,19 @@ import config
 import http_client
 import perf
 
+log = logging.getLogger(__name__)
+
 NEED_UPDATE = ("скрипт таблиці старої версії. Apps Script → вставте новий код → "
                "Деплой → Керувати розгортаннями → ✏️ → Версія: Нова версія")
 
 TIMEOUT = aiohttp.ClientTimeout(total=30)
+
+# Apps Script інколи виконує запис, але відповідь губиться на переадресації
+# (googleusercontent віддає 404 або 5xx). Тому такі коди пробуємо ще раз —
+# запис у скрипті ідемпотентний: рядок із тим самим номером і артикулом
+# перезаписується, а не дублюється.
+RETRY_STATUSES = (404, 429, 500, 502, 503, 504)
+RETRY_PAUSE = 2
 
 
 UNAUTHORIZED = ("таблиця відхилила запит: SHEETS_API_SECRET не збігається з "
@@ -71,16 +82,29 @@ async def _post(payload: dict):
     if err:
         return None, err
     payload = {**payload, "secret": config.SHEETS_API_SECRET}
-    try:
-        async with perf.timed(f"таблиця POST {payload.get('type', '?')}"):
-            s = http_client.session()
-            async with s.post(config.SHEET_WEBHOOK_URL, json=payload,
-                              timeout=TIMEOUT, allow_redirects=True) as r:
-                if r.status >= 400:
-                    return None, f"HTTP {r.status}"
-                return _parse(await r.text())
-    except Exception as e:  # noqa: BLE001
-        return None, _scrub(str(e))
+    label = payload.get("type", "?")
+    for attempt in (1, 2):
+        try:
+            async with perf.timed(f"таблиця POST {label}"):
+                s = http_client.session()
+                async with s.post(config.SHEET_WEBHOOK_URL, json=payload,
+                                  timeout=TIMEOUT, allow_redirects=True) as r:
+                    if r.status in RETRY_STATUSES and attempt == 1:
+                        log.warning("Таблиця відповіла HTTP %s на %s — "
+                                    "пробую ще раз", r.status, label)
+                        await asyncio.sleep(RETRY_PAUSE)
+                        continue
+                    if r.status >= 400:
+                        return None, f"HTTP {r.status}"
+                    return _parse(await r.text())
+        except Exception as e:  # noqa: BLE001
+            if attempt == 1:
+                log.warning("Таблиця не відповіла на %s (%s) — пробую ще раз",
+                            label, _scrub(str(e))[:80])
+                await asyncio.sleep(RETRY_PAUSE)
+                continue
+            return None, _scrub(str(e))
+    return None, "таблиця не відповіла з двох спроб"
 
 
 def _hint(text: str) -> str:
@@ -113,16 +137,27 @@ async def _get(params: dict):
     if err:
         return None, err
     params = {**params, "secret": config.SHEETS_API_SECRET}
-    try:
-        async with perf.timed(f"таблиця GET {params.get('what', '?')}"):
-            s = http_client.session()
-            async with s.get(config.SHEET_WEBHOOK_URL, params=params,
-                             timeout=TIMEOUT, allow_redirects=True) as r:
-                if r.status >= 400:
-                    return None, f"HTTP {r.status}"
-                return _parse(await r.text())
-    except Exception as e:  # noqa: BLE001
-        return None, _scrub(str(e))
+    label = params.get("what", "?")
+    for attempt in (1, 2):
+        try:
+            async with perf.timed(f"таблиця GET {label}"):
+                s = http_client.session()
+                async with s.get(config.SHEET_WEBHOOK_URL, params=params,
+                                 timeout=TIMEOUT, allow_redirects=True) as r:
+                    if r.status in RETRY_STATUSES and attempt == 1:
+                        log.warning("Таблиця відповіла HTTP %s на читання %s — "
+                                    "пробую ще раз", r.status, label)
+                        await asyncio.sleep(RETRY_PAUSE)
+                        continue
+                    if r.status >= 400:
+                        return None, f"HTTP {r.status}"
+                    return _parse(await r.text())
+        except Exception as e:  # noqa: BLE001
+            if attempt == 1:
+                await asyncio.sleep(RETRY_PAUSE)
+                continue
+            return None, _scrub(str(e))
+    return None, "таблиця не відповіла з двох спроб"
 
 
 async def push_order(order: dict):

@@ -18,6 +18,32 @@ class NPError(Exception):
     pass
 
 
+# Нова Пошта відхиляє опис із «чужими» символами: на «Віночок Грейс Ø45 см
+# (WR-Gr-Сr6/7-d Ø45)» вона відповіла «Description is not valid». Тому перед
+# відправкою опис чистимо: Ø → d, довгі тире й лапки → звичайні, решту
+# несподіваного прибираємо. Артикул у таблиці та в прайсі лишається як є —
+# правимо тільки те, що їде в накладну.
+_NP_REPLACE = {
+    "Ø": "d", "ø": "d", "⌀": "d", "Ø": "d",
+    "×": "x", "х": "х",
+    "–": "-", "—": "-", "‑": "-",
+    "’": "'", "‘": "'", "«": '"', "»": '"', "“": '"', "”": '"',
+    " ": " ", " ": " ", "​": "",
+}
+_NP_ALLOWED = re.compile(r"[^0-9A-Za-zА-Яа-яЁёІіЇїЄєҐґ'\"() ./,+-]")
+
+
+def safe_description(text: str, limit: int = 100) -> str:
+    """Опис, який НП точно приймає. Зміст лишається читним для людини."""
+    out = str(text or "")
+    for bad, good in _NP_REPLACE.items():
+        out = out.replace(bad, good)
+    out = _NP_ALLOWED.sub(" ", out)
+    out = re.sub(r"d\s+d(?=\d)", "d", out)      # «-d d45» → «-d 45»
+    out = re.sub(r"\s+", " ", out).strip(" -,.")
+    return out[:limit]
+
+
 async def _call(model, method, props, api_key: str | None = None):
     import np_store
     key = api_key or np_store.get("api_key")
@@ -199,7 +225,7 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
         "Weight": str(round(max(weight, 0.5), 1)),
         "SeatsAmount": str(seats),
         "ServiceType": service_type,
-        "Description": description[:100],
+        "Description": safe_description(description),
         "Cost": str(int(cost)),
         "CitySender": s["city_ref"],
         "Sender": s["sender_ref"],
