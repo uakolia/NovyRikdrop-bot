@@ -1249,6 +1249,24 @@
    "price_retail_min": 28037.0
   },
   {
+   "model": "Grandia / Грандія",
+   "model_ua": "Грандія",
+   "article": "Cr6G-300",
+   "height_m": 3.0,
+   "size": "3.0",
+   "diameter_cm": null,
+   "weight_kg": 47.2,
+   "volume_m3": null,
+   "box": "",
+   "parts": null,
+   "price_wholesale": null,
+   "price_drop1": null,
+   "price_drop2": 23083.0,
+   "price_drop3": null,
+   "price_retail_min": 32085.37,
+   "weight_estimated": true
+  },
+  {
    "model": "Grandia Premium/ Грандія Преміум",
    "model_ua": "Грандія Преміум",
    "article": "Cr6wide-150",
