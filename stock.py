@@ -98,8 +98,18 @@ async def refresh():
     rows, err = await sheets_store.fetch_stock()
     if err:
         return 0, err
+    return apply_rows(rows), None
+
+
+def apply_rows(rows) -> int:
+    """Застосувати вже прочитані рядки «Залишків дропшиперів».
+
+    Окремо від читання: ті самі рядки приходять і одним запитом
+    what=bootstrap. Рядки тут уже мають бути очищені (sheets_store обрізає
+    пробіли й відкидає порожні артикули).
+    """
     fresh: dict[str, dict[str, dict]] = {}
-    for r in rows:
+    for r in rows or []:
         uid = str(r.get("tg_id") or "").strip()
         art = str(r.get("article") or "").strip()
         if uid and art:
@@ -107,7 +117,7 @@ async def refresh():
     _cache.clear()
     _cache.update(fresh)
     _stale.clear()
-    return len(rows), None
+    return sum(len(v) for v in fresh.values())
 
 
 def all_rows() -> list:

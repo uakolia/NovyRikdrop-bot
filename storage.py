@@ -3,6 +3,7 @@
 Файли контейнера зникають при деплої, тому основне джерело правди —
 Google Таблиця (аркуш «Дропшипери»). Локальний JSON — швидкий кеш.
 """
+import asyncio
 import json
 import os
 import threading
@@ -15,6 +16,27 @@ _lock = threading.Lock()
 # кеш у пам'яті: {user_id_str: {"name","username","tier"}}
 _approved_cache: dict[str, dict] = {}
 _synced = False
+
+# Номер замовлення продовжується з таблиці, а читання таблиці більше не
+# тримає старт бота (інакше запуск тягнувся під півтори хвилини). Тому перед
+# тим, як видати номер, оформлення чекає цієї події: інакше замовлення,
+# зроблене в першу секунду після деплою, отримало б номер 1 і перезаписало
+# чуже. Чекати доводиться лише в ці перші секунди.
+_seq_ready = asyncio.Event()
+
+
+def seq_give_up():
+    """Таблиця не відповіла — далі нумеруємо локально, оформлення не тримаємо."""
+    _seq_ready.set()
+
+
+async def wait_seq_ready(timeout: float = 15) -> bool:
+    """Дочекатися, поки лічильник замовлень підтягнеться з таблиці."""
+    try:
+        await asyncio.wait_for(_seq_ready.wait(), timeout)
+        return True
+    except asyncio.TimeoutError:
+        return False
 
 # допустимі значення колонки «Тариф» в аркуші «Дропшипери»
 TIERS = ("drop1", "drop2", "drop3")
@@ -101,13 +123,22 @@ def is_approved(user_id: int) -> bool:
 
 async def sync_from_sheet(force: bool = False):
     """Підтягнути схвалених дропшиперів із Google Таблиці."""
-    global _synced
     import sheets_store
     if not sheets_store.enabled():
         return 0, "SHEET_WEBHOOK_URL не задано — список зберігається лише локально"
     rows, err = await sheets_store.fetch_dropshippers()
     if err:
         return 0, err
+    return apply_dropshippers(rows), None
+
+
+def apply_dropshippers(rows) -> int:
+    """Застосувати вже прочитані рядки аркуша «Дропшипери».
+
+    Окремо від читання, бо ті самі рядки приходять і одним запитом
+    what=bootstrap разом із назвами та залишками.
+    """
+    global _synced
     _approved_cache.clear()
     with _lock:
         d = _load()
@@ -121,7 +152,7 @@ async def sync_from_sheet(force: bool = False):
                 d["approved"][uid] = info
         _save(d)
     _synced = True
-    return len(_approved_cache), None
+    return len(_approved_cache)
 
 
 def add_pending(user_id: int, name: str, username: str):
@@ -185,15 +216,27 @@ async def init_order_seq():
     """Продовжити нумерацію замовлень із таблиці (після деплою файл чистий)."""
     import sheets_store
     if not sheets_store.enabled():
+        _seq_ready.set()
         return
     max_no, err = await sheets_store.fetch_max_order_no()
-    if err or not max_no:
+    if err:
         return
-    with _lock:
-        d = _load()
-        if max_no > d["order_seq"]:
-            d["order_seq"] = max_no
-            _save(d)
+    apply_max_order_no(max_no)
+
+
+def apply_max_order_no(max_no: int):
+    """Зсунути лічильник до номера з таблиці й відкрити оформлення."""
+    try:
+        max_no = int(max_no or 0)
+    except (TypeError, ValueError):
+        max_no = 0
+    if max_no:
+        with _lock:
+            d = _load()
+            if max_no > d["order_seq"]:
+                d["order_seq"] = max_no
+                _save(d)
+    _seq_ready.set()
 
 
 def next_order_no() -> int:

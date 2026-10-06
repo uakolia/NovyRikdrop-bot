@@ -1,4 +1,5 @@
 """Сценарій оформлення замовлення дропшипером (з кнопками «Назад»)."""
+import logging
 import re
 
 from aiogram import F, Router
@@ -13,6 +14,7 @@ import catalog, config, keyboards as kb, novaposhta as np, orders, payment, stor
 import perf
 import stock
 
+log = logging.getLogger(__name__)
 router = Router()
 
 
@@ -892,6 +894,12 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
         await show_category(target, state)
         return
     to_door = bool(data.get("to_door"))
+
+    # номер продовжується з таблиці, а читання таблиці йде у фоні після старту;
+    # у перші секунди після деплою чекаємо, щоб не видати вже зайнятий номер
+    if not await storage.wait_seq_ready():
+        log.warning("Номер замовлення беремо локально: лічильник із таблиці "
+                    "не підтягнувся")
 
     common = dict(
         order_no=storage.next_order_no(),

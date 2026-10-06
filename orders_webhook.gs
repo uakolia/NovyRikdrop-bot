@@ -586,53 +586,106 @@ function ttnStatus_(data) {
   }
 }
 
+// ─── читання аркушів ──────────────────────────────────────────────────────
+// Кожне читання — окрема функція, бо їх викликає і doGet по одному запиту,
+// і what=bootstrap, який віддає все за ОДНЕ виконання скрипта. Google
+// серіалізує виконання скрипта для одного користувача, тож чотири окремі
+// читання при старті бота стають у чергу й останнє чекало до 20 секунд.
+
+function readDropshippers_() {
+  var sh = sheet_(DROPS_SHEET, DROP_HEADERS);
+  ensureHeaders_(sh, DROP_HEADERS);
+  var last = sh.getLastRow();
+  var rows = [];
+  if (last > 1) {
+    var vals = sh.getRange(2, 1, last - 1, DROP_HEADERS.length).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      if (!vals[i][0]) continue;
+      rows.push({
+        tg_id: trim_(vals[i][0]), name: vals[i][1], username: vals[i][2],
+        status: vals[i][3] || "схвалений",
+        tier: trim_(vals[i][DROP_TIER_COL - 1])
+      });
+    }
+  }
+  return rows;
+}
+
+function readStock_() {
+  // аркуш ведуть руками; якщо його ще немає — просто порожній список
+  var ssh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(STOCK_SHEET);
+  var srows = [];
+  if (ssh && ssh.getLastRow() > 1) {
+    var width = Math.max(ssh.getLastColumn(), STOCK_COLS.available);
+    var sv = ssh.getRange(2, 1, ssh.getLastRow() - 1, width).getValues();
+    for (var s = 0; s < sv.length; s++) {
+      var art = trim_(sv[s][STOCK_COLS.article - 1]);
+      if (!art) continue;
+      srows.push({
+        tg_id: trim_(sv[s][STOCK_COLS.tg_id - 1]),
+        dropshipper: trim_(sv[s][STOCK_COLS.dropshipper - 1]),
+        article: art,
+        // назву обрізаємо: вона потрапляє в опис ТТН на паперовій накладній
+        name: trim_(sv[s][STOCK_COLS.name - 1]),
+        allocated: sv[s][STOCK_COLS.allocated - 1],
+        reserved: sv[s][STOCK_COLS.reserved - 1],
+        delivered: sv[s][STOCK_COLS.delivered - 1],
+        available: sv[s][STOCK_COLS.available - 1]
+      });
+    }
+  }
+  return srows;
+}
+
+function readAliases_() {
+  var ash = sheet_(ALIAS_SHEET, ALIAS_HEADERS);
+  var lastA = ash.getLastRow();
+  var arows = [];
+  if (lastA > 1) {
+    var av = ash.getRange(2, 1, lastA - 1, 3).getValues();
+    for (var q = 0; q < av.length; q++) {
+      if (!av[q][0] || !av[q][1] || !av[q][2]) continue;
+      arows.push({ tg_id: String(av[q][0]), key: String(av[q][1]),
+                   name: String(av[q][2]) });
+    }
+  }
+  return arows;
+}
+
+function readMaxOrderNo_() {
+  var s = sheet_(ORDERS_SHEET, ORDER_HEADERS);
+  var n = s.getLastRow();
+  var max = 0;
+  if (n > 1) {
+    var col = s.getRange(2, 1, n - 1, 1).getValues();
+    for (var m = 0; m < col.length; m++) {
+      var num = parseInt(col[m][0], 10);
+      if (!isNaN(num) && num > max) max = num;
+    }
+  }
+  return max;
+}
+
 function doGet(e) {
   if (!authorized_(e && e.parameter && e.parameter.secret)) return unauthorized_();
   var what = (e && e.parameter && e.parameter.what) || "";
 
+  // усе, що потрібно боту при старті й у циклі оновлення, за одне виконання
+  if (what === "bootstrap") {
+    return json_({
+      dropshippers: readDropshippers_(),
+      aliases: readAliases_(),
+      stock: readStock_(),
+      maxorder: readMaxOrderNo_()
+    });
+  }
+
   if (what === "dropshippers") {
-    var sh = sheet_(DROPS_SHEET, DROP_HEADERS);
-    ensureHeaders_(sh, DROP_HEADERS);
-    var last = sh.getLastRow();
-    var rows = [];
-    if (last > 1) {
-      var vals = sh.getRange(2, 1, last - 1, DROP_HEADERS.length).getValues();
-      for (var i = 0; i < vals.length; i++) {
-        if (!vals[i][0]) continue;
-        rows.push({
-          tg_id: trim_(vals[i][0]), name: vals[i][1], username: vals[i][2],
-          status: vals[i][3] || "схвалений",
-          tier: trim_(vals[i][DROP_TIER_COL - 1])
-        });
-      }
-    }
-    return json_({ rows: rows });
+    return json_({ rows: readDropshippers_() });
   }
 
   if (what === "stock") {
-    // аркуш ведуть руками; якщо його ще немає — просто порожній список
-    var ssh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(STOCK_SHEET);
-    var srows = [];
-    if (ssh && ssh.getLastRow() > 1) {
-      var width = Math.max(ssh.getLastColumn(), STOCK_COLS.available);
-      var sv = ssh.getRange(2, 1, ssh.getLastRow() - 1, width).getValues();
-      for (var s = 0; s < sv.length; s++) {
-        var art = trim_(sv[s][STOCK_COLS.article - 1]);
-        if (!art) continue;
-        srows.push({
-          tg_id: trim_(sv[s][STOCK_COLS.tg_id - 1]),
-          dropshipper: trim_(sv[s][STOCK_COLS.dropshipper - 1]),
-          article: art,
-          // назву обрізаємо: вона потрапляє в опис ТТН на паперовій накладній
-          name: trim_(sv[s][STOCK_COLS.name - 1]),
-          allocated: sv[s][STOCK_COLS.allocated - 1],
-          reserved: sv[s][STOCK_COLS.reserved - 1],
-          delivered: sv[s][STOCK_COLS.delivered - 1],
-          available: sv[s][STOCK_COLS.available - 1]
-        });
-      }
-    }
-    return json_({ rows: srows });
+    return json_({ rows: readStock_() });
   }
 
   if (what === "orders") {
@@ -660,18 +713,7 @@ function doGet(e) {
   }
 
   if (what === "aliases") {
-    var ash = sheet_(ALIAS_SHEET, ALIAS_HEADERS);
-    var lastA = ash.getLastRow();
-    var arows = [];
-    if (lastA > 1) {
-      var av = ash.getRange(2, 1, lastA - 1, 3).getValues();
-      for (var q = 0; q < av.length; q++) {
-        if (!av[q][0] || !av[q][1] || !av[q][2]) continue;
-        arows.push({ tg_id: String(av[q][0]), key: String(av[q][1]),
-                     name: String(av[q][2]) });
-      }
-    }
-    return json_({ rows: arows });
+    return json_({ rows: readAliases_() });
   }
 
   if (what === "ttns") {
@@ -717,19 +759,9 @@ function doGet(e) {
   }
 
   if (what === "maxorder") {
-    var s = sheet_(ORDERS_SHEET, ORDER_HEADERS);
-    var n = s.getLastRow();
-    var max = 0;
-    if (n > 1) {
-      var col = s.getRange(2, 1, n - 1, 1).getValues();
-      for (var m = 0; m < col.length; m++) {
-        var num = parseInt(col[m][0], 10);
-        if (!isNaN(num) && num > max) max = num;
-      }
-    }
-    return json_({ max: max });
+    return json_({ max: readMaxOrderNo_() });
   }
 
   return json_({ ok: true,
-    hint: "what=dropshippers|orders|aliases|maxorder|stock|ttns" });
+    hint: "what=bootstrap|dropshippers|orders|aliases|maxorder|stock|ttns" });
 }

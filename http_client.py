@@ -15,6 +15,7 @@ TCP- і TLS-рукостискання. Вимірювання (6 запитів
 """
 import asyncio
 import logging
+import socket
 
 import aiohttp
 
@@ -24,6 +25,10 @@ log = logging.getLogger(__name__)
 _LIMIT = 20
 # скільки секунд тримати вільне з'єднання — Google і НП рвуть довгі простої самі
 _KEEPALIVE = 60
+# Тільки IPv4. У контейнері Railway немає маршруту в IPv6, але DNS віддає і
+# AAAA-записи, тож на кожне нове з'єднання aiohttp спершу пробував IPv6 і чекав
+# відмови — звідси постійні кілька секунд поверх кожного запиту до Google.
+_FAMILY = socket.AF_INET
 
 _session: aiohttp.ClientSession | None = None
 _loop: asyncio.AbstractEventLoop | None = None
@@ -40,6 +45,7 @@ def session() -> aiohttp.ClientSession:
                                                and _loop is not running):
         connector = aiohttp.TCPConnector(limit=_LIMIT,
                                          keepalive_timeout=_KEEPALIVE,
+                                         family=_FAMILY,
                                          enable_cleanup_closed=True)
         _session = aiohttp.ClientSession(connector=connector)
         _loop = running

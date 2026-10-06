@@ -5,6 +5,7 @@
 бо Apps Script не бачить HTTP-заголовків:
   POST {type: "order", ...}        — додати замовлення
   POST {type: "dropshipper", ...}  — додати/оновити дропшипера
+  GET  ?what=bootstrap             — дропшипери+назви+залишки+макс. номер
   GET  ?what=dropshippers          — список схвалених
   GET  ?what=orders&id=<tg_id>     — замовлення дропшипера
   GET  ?what=maxorder              — максимальний номер замовлення
@@ -32,7 +33,14 @@ log = logging.getLogger(__name__)
 NEED_UPDATE = ("скрипт таблиці старої версії. Apps Script → вставте новий код → "
                "Деплой → Керувати розгортаннями → ✏️ → Версія: Нова версія")
 
-TIMEOUT = aiohttp.ClientTimeout(total=30)
+# Таймаути. Apps Script віддає відповідь у два кроки (/exec → переадресація на
+# script.googleusercontent.com), і якщо виконання стало в чергу, очікування
+# тягнеться десятки секунд. Тридцять секунд на читання означали, що дропшипер
+# стільки ж дивиться на зависле меню; дванадцяти вистачає з запасом (звичайне
+# читання — 1–2 с), а повторна спроба вже є. Запис чекає довше: у скрипті на
+# залишках стоїть замок із очікуванням до 20 с.
+READ_TIMEOUT = aiohttp.ClientTimeout(total=12)
+WRITE_TIMEOUT = aiohttp.ClientTimeout(total=20)
 
 # Apps Script інколи виконує запис, але відповідь губиться на переадресації
 # (googleusercontent віддає 404 або 5xx). Тому такі коди пробуємо ще раз —
@@ -40,6 +48,11 @@ TIMEOUT = aiohttp.ClientTimeout(total=30)
 # перезаписується, а не дублюється.
 RETRY_STATUSES = (404, 429, 500, 502, 503, 504)
 RETRY_PAUSE = 2
+
+# ...але операції із залишками повторювати НЕ можна: вони додають і віднімають
+# числа, тож якщо відповідь загубилася вже ПІСЛЯ запису, друга спроба
+# зарезервує товар удвічі. Краще голосно не зробити, ніж тихо зробити двічі.
+NO_RETRY_TYPES = ("reserve", "receive", "release", "reserve_many", "release_many")
 
 
 UNAUTHORIZED = ("таблиця відхилила запит: SHEETS_API_SECRET не збігається з "
@@ -69,6 +82,20 @@ def _scrub(text: str) -> str:
     return text
 
 
+def _err_text(e: Exception) -> str:
+    """Текст помилки, який ніколи не буває порожнім.
+
+    str(asyncio.TimeoutError()) — порожній рядок, і через нього таймаут
+    доходив до дропшипера як «скрипт таблиці старої версії»: виклик віддавав
+    порожню помилку, перевірка `if err` її пропускала, і далі спрацьовувала
+    гілка «немає даних у відповіді».
+    """
+    if isinstance(e, asyncio.TimeoutError):
+        return "таблиця не відповіла за відведений час"
+    text = _scrub(str(e)).strip()
+    return text or f"збій зв'язку з таблицею ({type(e).__name__})"
+
+
 def _not_ready():
     if not config.SHEET_WEBHOOK_URL:
         return "вебхук таблиці не налаштований (SHEET_WEBHOOK_URL)"
@@ -83,13 +110,15 @@ async def _post(payload: dict):
         return None, err
     payload = {**payload, "secret": config.SHEETS_API_SECRET}
     label = payload.get("type", "?")
-    for attempt in (1, 2):
+    attempts = (1,) if label in NO_RETRY_TYPES else (1, 2)
+    for attempt in attempts:
         try:
             async with perf.timed(f"таблиця POST {label}"):
                 s = http_client.session()
                 async with s.post(config.SHEET_WEBHOOK_URL, json=payload,
-                                  timeout=TIMEOUT, allow_redirects=True) as r:
-                    if r.status in RETRY_STATUSES and attempt == 1:
+                                  timeout=WRITE_TIMEOUT,
+                                  allow_redirects=True) as r:
+                    if r.status in RETRY_STATUSES and attempt != attempts[-1]:
                         log.warning("Таблиця відповіла HTTP %s на %s — "
                                     "пробую ще раз", r.status, label)
                         await asyncio.sleep(RETRY_PAUSE)
@@ -98,12 +127,12 @@ async def _post(payload: dict):
                         return None, f"HTTP {r.status}"
                     return _parse(await r.text())
         except Exception as e:  # noqa: BLE001
-            if attempt == 1:
+            if attempt != attempts[-1]:
                 log.warning("Таблиця не відповіла на %s (%s) — пробую ще раз",
-                            label, _scrub(str(e))[:80])
+                            label, _err_text(e)[:80])
                 await asyncio.sleep(RETRY_PAUSE)
                 continue
-            return None, _scrub(str(e))
+            return None, _err_text(e)
     return None, "таблиця не відповіла з двох спроб"
 
 
@@ -143,7 +172,8 @@ async def _get(params: dict):
             async with perf.timed(f"таблиця GET {label}"):
                 s = http_client.session()
                 async with s.get(config.SHEET_WEBHOOK_URL, params=params,
-                                 timeout=TIMEOUT, allow_redirects=True) as r:
+                                 timeout=READ_TIMEOUT,
+                                 allow_redirects=True) as r:
                     if r.status in RETRY_STATUSES and attempt == 1:
                         log.warning("Таблиця відповіла HTTP %s на читання %s — "
                                     "пробую ще раз", r.status, label)
@@ -154,9 +184,11 @@ async def _get(params: dict):
                     return _parse(await r.text())
         except Exception as e:  # noqa: BLE001
             if attempt == 1:
+                log.warning("Таблиця не відповіла на читання %s (%s) — "
+                            "пробую ще раз", label, _err_text(e)[:80])
                 await asyncio.sleep(RETRY_PAUSE)
                 continue
-            return None, _scrub(str(e))
+            return None, _err_text(e)
     return None, "таблиця не відповіла з двох спроб"
 
 
@@ -196,6 +228,27 @@ async def push_dropshipper(user_id: int, name: str, username: str,
         "username": username, "status": status, "approved_by": approved_by,
     })
     return err
+
+
+async def fetch_bootstrap():
+    """Дропшипери + власні назви + залишки + максимальний номер — одним разом.
+
+    Окремі читання стають у чергу: Google виконує скрипт одного користувача
+    послідовно, тож чотири запити підряд при старті бота — це чотири виконання
+    одне за одним, і останнє чекає всі попередні. Тут усе читається за одне.
+
+    Повертає (дані, помилка). Якщо розгорнуто старий скрипт (він не знає
+    what=bootstrap і відповідає підказкою), помилкою буде NEED_UPDATE —
+    викликач має відкотитися на окремі читання.
+    """
+    data, err = await _get({"what": "bootstrap"})
+    if err:
+        return None, err
+    if not isinstance(data, dict) or data.get("dropshippers") is None:
+        return None, NEED_UPDATE
+    # залишки чистимо так само, як у fetch_stock: назва з аркуша їде в опис ТТН
+    data["stock"] = _clean_stock_rows(data.get("stock"))
+    return data, None
 
 
 async def fetch_dropshippers():
@@ -254,12 +307,17 @@ async def fetch_stock():
     rows = (data or {}).get("rows")
     if rows is None:
         return None, NEED_UPDATE
+    return _clean_stock_rows(rows), None
+
+
+def _clean_stock_rows(rows) -> list:
+    """Обрізати текст і відкинути рядки без артикула."""
     out = []
-    for r in rows:
+    for r in rows or []:
         clean = {k: (v.strip() if isinstance(v, str) else v) for k, v in r.items()}
         if clean.get("article"):
             out.append(clean)
-    return out, None
+    return out
 
 
 async def stock_op(op: str, user_id: int, article: str, qty: int):

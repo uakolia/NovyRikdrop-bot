@@ -59,8 +59,18 @@ async def sync_from_sheet():
     if err:
         _load_local()
         return sum(len(v) for v in _cache.values()), err
+    return apply_rows(rows), None
+
+
+def apply_rows(rows) -> int:
+    """Застосувати вже прочитані рядки аркуша «Назви товарів».
+
+    Окремо від читання: ті самі рядки приходять і одним запитом
+    what=bootstrap разом із дропшиперами й залишками.
+    """
+    global _cache
     new: dict[str, dict[str, str]] = {}
-    for r in rows:
+    for r in rows or []:
         uid = str(r.get("tg_id", "")).strip()
         key = _norm(r.get("key"))
         name = str(r.get("name", "")).strip()
@@ -68,7 +78,7 @@ async def sync_from_sheet():
             new.setdefault(uid, {})[key] = name
     _cache = new
     _save_local()
-    return sum(len(v) for v in _cache.values()), None
+    return sum(len(v) for v in _cache.values())
 
 
 def set_alias(user_id: int, key: str, name: str):

@@ -13,9 +13,13 @@ POST /weblium?secret=...   JSON-тіло, поля (будь-які з них):
 Бот запише замовлення в журнал і повідомить менеджера. Якщо вдасться однозначно
 знайти місто і вантажне відділення в НП — створить і ТТН.
 """
+import logging
+
 from aiohttp import web
 
 import catalog, config, novaposhta as np, orders, storage
+
+log = logging.getLogger(__name__)
 
 
 def _field(data, *keys, default=""):
@@ -50,6 +54,10 @@ async def handle_weblium(request: web.Request):
     payment = _field(data, "payment", "оплата", default="післяплата")
     payment = "передплата" if "перед" in payment.lower() else "післяплата"
 
+    # лічильник замовлень підтягується з таблиці у фоні після старту
+    if not await storage.wait_seq_ready():
+        log.warning("Номер замовлення з сайту беремо локально: лічильник із "
+                    "таблиці не підтягнувся")
     order = orders.new_order(
         order_no=storage.next_order_no(),
         source="weblium",
