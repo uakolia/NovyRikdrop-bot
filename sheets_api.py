@@ -351,11 +351,13 @@ def _aliases(rows) -> list:
 
 def _stock(rows) -> list:
     out = []
-    for r in rows:
+    for n, r in enumerate(rows):
         art = _text(r, STOCK_COLS["article"])
         if not art:
             continue
         out.append({
+            # номер рядка потрібен перерахунку, щоб писати точно в цей рядок
+            "row": n + 2,
             "tg_id": _id_at(r, STOCK_COLS["tg_id"]),
             "dropshipper": _text(r, STOCK_COLS["dropshipper"]),
             "article": art,
@@ -384,6 +386,59 @@ async def _order_rows():
             continue
         out.append({k: _cell(r, i + 1) for i, k in enumerate(ORDER_KEYS)})
     return out
+
+
+async def read_stock():
+    """Рядки «Залишків» із номерами рядків — для перерахунку."""
+    def call():
+        return _build().spreadsheets().values().get(
+            spreadsheetId=_sheet_id(), range=f"{STOCK_TAB}!A2:J",
+            valueRenderOption="UNFORMATTED_VALUE").execute()
+
+    try:
+        resp = await _run(call, f"get {STOCK_TAB}")
+    except ApiError as e:
+        return None, str(e)
+    return _stock(resp.get("values") or []), None
+
+
+async def write_stock_counts(fixes: list):
+    """Записати «Зарезервовано» й «Отримано» для перелічених рядків.
+
+    Пишемо ТІЛЬКИ ці дві колонки й позначку часу: «Виділено за
+    передзамовленням» — домовленість із дропшипером, а «Доступно» — формула.
+    """
+    if not fixes:
+        return 0, None
+    now = config.now().strftime("%d.%m.%Y %H:%M:%S")
+    res_col = _col_letter(STOCK_COLS["reserved"])
+    rec_col = _col_letter(STOCK_COLS["delivered"])
+    upd_col = _col_letter(STOCK_COLS["updated"])
+    data = []
+    for f in fixes:
+        row = f.get("row")
+        if not row:
+            continue
+        data.append({"range": f"{STOCK_TAB}!{res_col}{row}",
+                     "values": [[_tidy(f["reserved"][1])]]})
+        data.append({"range": f"{STOCK_TAB}!{rec_col}{row}",
+                     "values": [[_tidy(f["received"][1])]]})
+        data.append({"range": f"{STOCK_TAB}!{upd_col}{row}",
+                     "values": [[now]]})
+    if not data:
+        return 0, "у правках немає номерів рядків"
+
+    def call():
+        return _build().spreadsheets().values().batchUpdate(
+            spreadsheetId=_sheet_id(),
+            body={"valueInputOption": "USER_ENTERED", "data": data}).execute()
+
+    async with _named_lock("stock"):
+        try:
+            await _run(call, "batchUpdate перерахунок")
+        except ApiError as e:
+            return 0, str(e)
+    return len(data) // 3, None
 
 
 async def read_orders(user_id, limit: int = 10):

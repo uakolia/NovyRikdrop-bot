@@ -157,6 +157,30 @@ async def cmd_sheetcheck(msg: Message):
     await msg.answer("\n".join(body))
 
 
+@router.message(Command("recount"))
+async def cmd_recount(msg: Message):
+    """Перерахувати «Зарезервовано» й «Отримано» з таблиці замовлень."""
+    if not _is_admin(msg.from_user.id):
+        return
+    import stock_recount
+    parts = (msg.text or "").split()
+    do_write = len(parts) > 1 and parts[1].lower() in ("write", "запис")
+    await msg.answer("⏳ Рахую залишки з таблиці замовлень…")
+    lines, n, err = await stock_recount.run(write=do_write)
+    if err:
+        await msg.answer(f"⚠️ {err}")
+        return
+    head = (f"✅ <b>Залишки перераховано</b>, виправлено рядків: {n}"
+            if do_write else "🧮 <b>Перерахунок залишків</b> (нічого не "
+                             "записано)")
+    tail = ([] if do_write else
+            ["", "Щоб застосувати — <code>/recount write</code>"])
+    await msg.answer("\n".join([head, ""] + lines + tail)[:4000])
+    if do_write:
+        import stock
+        stock.invalidate()
+
+
 @router.message(Command("npttn"))
 async def cmd_np_ttn(msg: Message):
     """/npttn <номер> — спитати НП про одну накладну й виправити таблицю.

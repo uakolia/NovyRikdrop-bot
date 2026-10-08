@@ -411,7 +411,35 @@ async def run_forever(bot):
                     await _tell_admin(
                         bot, "🔄 <b>Статуси Нової Пошти</b>\n"
                              + "\n".join(changed[:15]))
+            await _recount_stock(bot)
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001
             log.exception("Помилка в циклі статусів НП: %s", e)
+
+
+async def _recount_stock(bot):
+    """Перерахувати залишки з таблиці замовлень після опитування статусів.
+
+    Резерв бот більше не веде приростами (STOCK_RESERVE=0), тож колонки
+    «Зарезервовано» й «Отримано» інакше застигли б. Перерахунок ідемпотентний:
+    щогодини зводить їх із тим, що насправді стоїть у «Замовленнях».
+    """
+    if not config.STOCK_RECOUNT:
+        return
+    try:
+        import stock_recount
+        lines, n, err = await stock_recount.run(write=True)
+        if err:
+            log.warning("Перерахунок залишків не вдався: %s", err)
+            return
+        if n:
+            log.info("Перерахунок залишків: виправлено рядків %d", n)
+            if bot:
+                await _tell_admin(
+                    bot, f"🧮 <b>Залишки перераховано</b> (рядків {n})\n"
+                         + "\n".join(lines[:15]))
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        log.exception("Помилка перерахунку залишків: %s", e)

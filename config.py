@@ -69,6 +69,10 @@ PRICE_TIER = os.getenv("PRICE_TIER", "drop3")
 # просто нічого не пишемо. Увімкнути назад: STOCK_RESERVE=1.
 STOCK_RESERVE = os.getenv("STOCK_RESERVE", "0").strip() in ("1", "true", "yes")
 
+# Щогодини зводити «Зарезервовано» й «Отримано» з аркушем «Замовлення».
+# Без цього, з вимкненим резервом, обидві колонки застигли б назавжди.
+STOCK_RECOUNT = os.getenv("STOCK_RECOUNT", "1").strip() in ("1", "true", "yes")
+
 SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
 
 # ID таблиці замовлень. Якщо задано (і є GOOGLE_SERVICE_ACCOUNT_JSON, а
