@@ -77,6 +77,37 @@ async def cmd_sync_stock(msg: Message):
     await msg.answer(warehouse_sync.report_text(report)[:4000])
 
 
+@router.message(Command("sheetcheck"))
+async def cmd_sheetcheck(msg: Message):
+    """Перевірити прямий доступ до таблиці (Sheets API) і схему аркушів."""
+    if not _is_admin(msg.from_user.id):
+        return
+    import sheets_api
+    import sheets_store
+    if not sheets_api.enabled():
+        await msg.answer(
+            "ℹ️ <b>Прямий доступ вимкнено</b> — бот ходить у таблицю через "
+            "Apps Script.\nЩоб увімкнути: задайте <code>ORDERS_SHEET_ID</code> "
+            "і <code>GOOGLE_SERVICE_ACCOUNT_JSON</code>, а сервісний акаунт "
+            "додайте <b>редактором</b> таблиці замовлень.")
+        return
+    await msg.answer("⏳ Читаю таблицю напряму…")
+    import time
+    t = time.perf_counter()
+    lines, ok = await sheets_api.check()
+    ms = (time.perf_counter() - t) * 1000
+    head = ("✅ <b>Прямий доступ працює</b>" if ok
+            else "⚠️ <b>Схема аркушів розійшлася</b>")
+    body = [head, f"Читання заголовків: {ms:.0f} мс", ""] + lines
+    if ok:
+        body += ["", "📊 " + await sheets_api.counts()]
+    else:
+        body += ["", "Поки схема не зійдеться, прямим читанням довіряти не "
+                 "можна: бот брав би сусідню колонку. Приведіть заголовки до "
+                 "очікуваних або приберіть <code>ORDERS_SHEET_ID</code>."]
+    await msg.answer("\n".join(body))
+
+
 @router.message(Command("np_sync"))
 async def cmd_np_sync(msg: Message):
     """Перевірити статуси НП прямо зараз, не чекаючи щогодинного циклу."""

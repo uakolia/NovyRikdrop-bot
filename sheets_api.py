@@ -335,6 +335,95 @@ async def read_max_order_no():
     return data["maxorder"], None
 
 
+# ─── самоперевірка ───────────────────────────────────────────────────────────
+# Очікувані заголовки. Якщо в таблиці переставлять колонки, бот читав би
+# сусідню — тому перед тим, як довіряти прямому доступу, звіряємо рядок 1.
+EXPECT = {
+    ORDERS_TAB: ["№", "Дата", "Джерело", "ID дропшипера", "Дропшипер",
+                 "Артикул", "Товар", "Розмір", "К-сть", "Дроп-ціна", "Оплата",
+                 "ПІБ отримувача", "Телефон", "Місто", "Відділення / адреса",
+                 "ТТН", "Статус", "Коментар", "Ціна продажу", "Передплата",
+                 "При отриманні", "Доставка", "На рахунок", "Чек",
+                 "Статус Nova Poshta", "Оновлено"],
+    DROPS_TAB: ["Telegram ID", "Ім'я", "Username", "Статус", "Дата",
+                "Хто схвалив", "Тариф"],
+    ALIAS_TAB: ["Telegram ID", "Артикул або модель", "Своя назва"],
+}
+
+# «Залишки дропшиперів» ведуть руками, точного списку заголовків у коді немає,
+# тож тут перевіряємо не дослівну назву, а СУТЬ колонки за ключовим словом —
+# інакше перевірка кричала б на кожне перейменування.
+STOCK_EXPECT = {1: ("telegram", "id"), 3: ("артикул",), 6: ("видан", "виділ",
+                "передзамов", "замовлен"), 7: ("резерв",), 8: ("отрим", "видач",
+                "доставлен"), 9: ("доступ",)}
+
+
+async def check():
+    """Звірити живі заголовки з очікуваними. Повертає (рядки звіту, усе_ок).
+
+    Порівнюємо лише стільки колонок, скільки очікуємо, і лише їхній ПОРЯДОК:
+    назви в таблиці ведуть руками, тож зайві колонки праворуч не страшні, а
+    переставлена колонка — страшна.
+    """
+    tabs = list(EXPECT) + [STOCK_TAB]
+    ranges = [f"{tab}!1:1" for tab in tabs]
+
+    def call():
+        return _build().spreadsheets().values().batchGet(
+            spreadsheetId=_sheet_id(), ranges=ranges,
+            valueRenderOption="UNFORMATTED_VALUE").execute()
+
+    try:
+        resp = await _run(call, "batchGet заголовки")
+    except ApiError as e:
+        return [f"❌ {e}"], False
+    lines = []
+    ok = True
+    got = resp.get("valueRanges") or []
+    heads = []
+    for i in range(len(tabs)):
+        row = (got[i].get("values") or [[]])[0] if i < len(got) else []
+        heads.append([str(h).strip() for h in row])
+    for i, (tab, want) in enumerate(EXPECT.items()):
+        head = heads[i]
+        bad = [(n + 1, want[n], head[n] if n < len(head) else "—")
+               for n in range(len(want))
+               if (head[n] if n < len(head) else "") != want[n]]
+        if bad:
+            ok = False
+            lines.append(f"❌ <b>{tab}</b>: не збігається "
+                         + ", ".join(f"колонка {n} — очікували «{w}», "
+                                     f"а там «{g}»" for n, w, g in bad[:4]))
+        else:
+            lines.append(f"✅ <b>{tab}</b>: {len(want)} колонок на місці")
+
+    stock_head = heads[-1]
+    bad = []
+    for col, words in STOCK_EXPECT.items():
+        got_name = (stock_head[col - 1] if col <= len(stock_head) else "").lower()
+        if not any(w in got_name for w in words):
+            bad.append((col, words[0], got_name or "—"))
+    if bad:
+        ok = False
+        lines.append(f"❌ <b>{STOCK_TAB}</b>: "
+                     + ", ".join(f"колонка {c} має бути про «{w}», "
+                                 f"а там «{g}»" for c, w, g in bad))
+    else:
+        lines.append(f"✅ <b>{STOCK_TAB}</b>: артикул, резерв, отримано й "
+                     f"доступно на своїх колонках")
+    return lines, ok
+
+
+async def counts():
+    """Скільки рядків бачимо напряму — щоб побачити, що читаємо саме те."""
+    data, err = await read_all()
+    if err:
+        return f"❌ {err}"
+    return (f"дропшиперів {len(data['dropshippers'])}, "
+            f"назв {len(data['aliases'])}, залишків {len(data['stock'])}, "
+            f"максимальний номер замовлення {data['maxorder']}")
+
+
 # ─── залишки ─────────────────────────────────────────────────────────────────
 def _col_letter(col: int) -> str:
     out = ""
