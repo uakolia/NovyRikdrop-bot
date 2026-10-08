@@ -1,6 +1,13 @@
 """Google Таблиця як постійне сховище (файли в контейнері зникають при деплої).
 
-Працює через той самий Apps Script вебхук (SHEET_WEBHOOK_URL).
+ДВА ШЛЯХИ. Якщо задано ORDERS_SHEET_ID і сервісний акаунт — читання й
+операції із залишками йдуть НАПРЯМУ через Sheets API (модуль sheets_api):
+без переадресації, без черги виконань, 0,2–0,4 с замість 1–3 с. Запис
+замовлень і статусів ТТН лишається у вебхуці, бо скрипт на цих записах ще й
+переносить рядки в таблицю дропшипера. Якщо API не налаштований, усе
+працює через вебхук, як раніше.
+
+Вебхук — той самий Apps Script (SHEET_WEBHOOK_URL).
 Кожен запит несе SHEETS_API_SECRET (POST — у тілі, GET — параметром secret),
 бо Apps Script не бачить HTTP-заголовків:
   POST {type: "order", ...}        — додати замовлення
@@ -27,6 +34,7 @@ import aiohttp
 import config
 import http_client
 import perf
+import sheets_api
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +84,12 @@ OLD_SCRIPT = (NEED_UPDATE + "\n\n🔎 скрипт відповів без да�
 
 
 def enabled() -> bool:
-    return bool(config.SHEET_WEBHOOK_URL)
+    return bool(config.SHEET_WEBHOOK_URL) or sheets_api.enabled()
+
+
+def direct() -> bool:
+    """Чи ходимо в таблицю напряму (Sheets API), а не через Apps Script."""
+    return sheets_api.enabled()
 
 
 def _scrub(text: str) -> str:
@@ -248,6 +261,8 @@ async def fetch_bootstrap():
     what=bootstrap і відповідає підказкою), помилкою буде NEED_UPDATE —
     викликач має відкотитися на окремі читання.
     """
+    if direct():
+        return await sheets_api.read_all()
     data, err = await _get({"what": "bootstrap"})
     if err:
         return None, err
@@ -260,6 +275,9 @@ async def fetch_bootstrap():
 
 async def fetch_dropshippers():
     """[{tg_id, name, username, status}] або (None, помилка)."""
+    if direct():
+        data, err = await sheets_api.read_all()
+        return (data["dropshippers"] if data else None), err
     data, err = await _get({"what": "dropshippers"})
     if err:
         return None, err
@@ -276,6 +294,8 @@ async def fetch_orders(user_id: int, limit: int = 10):
     перевірка if (id && …), а рядок "0" у JavaScript істинний, тож скрипт
     шукав би замовлення дропшипера з ID 0 і повертав порожньо.
     """
+    if direct():
+        return await sheets_api.read_orders(user_id, limit)
     data, err = await _get({"what": "orders",
                             "id": str(user_id) if user_id else "",
                             "limit": str(limit)})
@@ -289,6 +309,9 @@ async def fetch_orders(user_id: int, limit: int = 10):
 
 async def fetch_aliases():
     """[{tg_id, key, name}] — власні назви товарів дропшиперів."""
+    if direct():
+        data, err = await sheets_api.read_all()
+        return (data["aliases"] if data else None), err
     data, err = await _get({"what": "aliases"})
     if err:
         return None, err
@@ -308,6 +331,9 @@ async def fetch_stock():
     Колонку «Дроп-ціна» свідомо не повертаємо: ціни беруться з прайсу за
     тарифом дропшипера (storage.price_tier), таблиця показує їх для ока.
     """
+    if direct():
+        data, err = await sheets_api.read_all()
+        return (data["stock"] if data else None), err
     data, err = await _get({"what": "stock"})
     if err:
         return None, err
@@ -333,6 +359,8 @@ async def stock_op(op: str, user_id: int, article: str, qty: int):
     Артикул шлемо ОРИГІНАЛЬНИЙ — у скрипті рядок шукається за канонічним
     ключем, але в таблиці лишається те, що написано в прайсі.
     """
+    if direct():
+        return await sheets_api.stock_op(op, user_id, article, int(qty))
     data, err = await _post({"type": op, "tg_id": str(user_id),
                              "article": article, "qty": int(qty)})
     if err:
@@ -357,6 +385,8 @@ async def stock_op_many(op: str, user_id: int, items: list[dict]):
     Повертає (дані, помилка). При «not enough» у даних — список позицій,
     яких бракує: [{article, available, requested}].
     """
+    if direct():
+        return await sheets_api.stock_op_many(op, user_id, items)
     payload = [{"article": i["article"], "qty": int(i["qty"])} for i in items]
     data, err = await _post({"type": op, "tg_id": str(user_id),
                              "items": payload})
@@ -373,6 +403,8 @@ async def stock_op_many(op: str, user_id: int, items: list[dict]):
 
 async def fetch_ttns():
     """Замовлення з ТТН, статус яких ще не кінцевий."""
+    if direct():
+        return await sheets_api.read_ttns()
     data, err = await _get({"what": "ttns"})
     if err:
         return None, err
@@ -401,6 +433,8 @@ async def push_alias(user_id: int, key: str, name: str):
 
 
 async def fetch_max_order_no():
+    if direct():
+        return await sheets_api.read_max_order_no()
     data, err = await _get({"what": "maxorder"})
     if err:
         return 0, err
