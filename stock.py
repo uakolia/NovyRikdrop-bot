@@ -17,6 +17,7 @@ available() віддає None, і бот нічого не резервує.
 import logging
 
 import article_key
+import config
 
 log = logging.getLogger(__name__)
 
@@ -210,9 +211,21 @@ async def display_name(user_id, article: str) -> str:
     return str((row or {}).get("name") or "").strip()
 
 
+SKIPPED = {"ok": True, "skipped": True, "items": []}
+
+
+def writes_enabled() -> bool:
+    """Чи пише бот резерв у таблицю. False — наявність лише для показу."""
+    return bool(config.STOCK_RESERVE)
+
+
 async def _op(op: str, user_id, article: str, qty: int):
     """Спільна частина reserve/receive/release. Повертає (дані, помилка)."""
     import sheets_store
+    if not writes_enabled():
+        log.info("Резервування вимкнено: %s %s × %s не записую",
+                 op, article, qty)
+        return dict(SKIPPED), None
     if not sheets_store.enabled():
         return None, "таблиця не налаштована"
     data, err = await sheets_store.stock_op(op, user_id, article, qty)
@@ -227,6 +240,10 @@ async def _op(op: str, user_id, article: str, qty: int):
 
 async def _op_many(op: str, user_id, items: list[dict]):
     import sheets_store
+    if not writes_enabled():
+        log.info("Резервування вимкнено: %s на %d позицій не записую",
+                 op, len(items))
+        return dict(SKIPPED), None
     if not sheets_store.enabled():
         return None, "таблиця не налаштована"
     data, err = await sheets_store.stock_op_many(op, user_id, items)

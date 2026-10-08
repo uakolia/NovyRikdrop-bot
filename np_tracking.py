@@ -272,19 +272,22 @@ async def _handle_missing(bot, group: list, fresh: dict, stock, was: str,
         return ""
     if not (head.get("tg_id") and items):
         return ""
-    _, err = await stock.release_many(head["tg_id"], items)
+    data, err = await stock.release_many(head["tg_id"], items)
     log.warning("ТТН %s: номера немає вдруге й замовленню понад добу — "
-                "резерв %s знято%s", ttn, listing,
-                f" (не вдалось: {err})" if err else "")
+                "стеження припиняємо (%s)%s", ttn, listing,
+                f"; резерв не знято: {err}" if err else "")
     if err:
         return ""
+    moved = not (data or {}).get("skipped")
     await _tell_admin(
         bot,
         "🔓 <b>Резерв знято, стеження припинено</b>\n"
         f"Замовлення №{head.get('order_no', '?')}, ТТН <code>{ttn}</code>\n"
         f"{listing}\n\n"
         "Нова Пошта не знає цього номера вже вдруге поспіль, а замовленню "
-        "понад добу. Резерв повернуто в залишки.\n\n"
+        "понад добу. " + ("Резерв повернуто в залишки."
+                          if moved else "Резерв бот не веде, залишки не "
+                                        "змінював.") + "\n\n"
         "⚠️ Бот <b>більше не перевіряє цю накладну</b>. Якщо посилка все ж "
         "з’явиться і поїде, залишки за нею доведеться звести вручну: "
         "статус НП більше не оновлюватиметься, і «Отримано» бот не проставить.",

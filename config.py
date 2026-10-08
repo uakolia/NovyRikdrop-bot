@@ -62,6 +62,13 @@ NP_PAYMENT_CONTROL = os.getenv("NP_PAYMENT_CONTROL", "1") == "1"
 PRICE_TIER = os.getenv("PRICE_TIER", "drop3")
 
 # Google Apps Script вебхук для запису замовлень у таблицю
+# Чи веде бот резерв у «Залишках дропшиперів» (колонка «Зарезервовано»).
+# Вимкнено: Лана свої передзамовлення не перепродасть, а запис резерву був
+# єдиним місцем, де збій зв'язку з таблицею міг зірвати вже оплачене
+# замовлення. Кількість із таблиці далі показуємо й не даємо перевищити —
+# просто нічого не пишемо. Увімкнути назад: STOCK_RESERVE=1.
+STOCK_RESERVE = os.getenv("STOCK_RESERVE", "0").strip() in ("1", "true", "yes")
+
 SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
 
 # ID таблиці замовлень. Якщо задано (і є GOOGLE_SERVICE_ACCOUNT_JSON, а

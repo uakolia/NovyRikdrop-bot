@@ -131,6 +131,9 @@ async def main():
         raise SystemExit("Задайте BOT_TOKEN у .env")
     catalog.load()
     log.info("Каталог: %d товарів", len(catalog.items()))
+    log.info("Резерв у «Залишках дропшиперів»: %s",
+             "ведеться" if stock.writes_enabled()
+             else "ВИМКНЕНО (кількість лише показуємо)")
 
     bot = Bot(config.BOT_TOKEN,
               default=DefaultBotProperties(parse_mode=ParseMode.HTML))
