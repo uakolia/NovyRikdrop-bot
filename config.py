@@ -75,6 +75,10 @@ SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
 # сервісний акаунт — редактор цієї таблиці), читання й операції із залишками
 # ідуть напряму через Sheets API, без Apps Script. Порожнє — усе як раніше.
 ORDERS_SHEET_ID = os.getenv("ORDERS_SHEET_ID", "")
+
+# Куди дублювати замовлення дропшиперам: {"<telegram id>": "<id таблиці>"}.
+# Той самий формат, що був у Властивостях Apps Script.
+DROPSHIPPER_EXPORT_SHEETS_JSON = os.getenv("DROPSHIPPER_EXPORT_SHEETS_JSON", "")
 # спільний секрет із Властивостями Apps Script (без нього скрипт відхиляє запити)
 SHEETS_API_SECRET = os.getenv("SHEETS_API_SECRET", "")
 

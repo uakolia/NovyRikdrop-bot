@@ -60,10 +60,31 @@ def save_csv(order: dict):
         w.writerow(order)
 
 
+async def _write_direct(rows: list[dict]) -> str | None:
+    """Записати напряму через Sheets API і продублювати дропшиперу.
+
+    Apps Script лишався на шляху замовлення тільки через експорт у таблицю
+    дропшипера — тепер і він на Python, тож скрипт тут більше не потрібен.
+    """
+    import dropshipper_export
+    import sheets_api
+    _, err = await sheets_api.write_order_rows(rows)
+    if err:
+        return err
+    # збій експорту не має валити замовлення: воно вже в головній таблиці
+    export_err = await dropshipper_export.push(rows)
+    if export_err:
+        return f"замовлення записано, але таблиця дропшипера не оновилась: {export_err}"
+    return None
+
+
 async def send_to_sheet_rows(rows: list[dict]) -> str | None:
     """Усе замовлення одним запитом: рядок на позицію, спільний номер."""
     if not rows:
         return None
+    import sheets_api
+    if sheets_api.enabled():
+        return await _write_direct(rows)
     if not config.SHEET_WEBHOOK_URL:
         return None
     return await sheets_store.push_order_rows(rows)
@@ -74,6 +95,9 @@ async def send_to_sheet(order: dict) -> str | None:
 
     Йде через sheets_store: там секрет і перевірка відповіді {"ok": false}
     (Apps Script відхиляє запит з HTTP 200, тож статус нічого не каже)."""
+    import sheets_api
+    if sheets_api.enabled():
+        return await _write_direct([order])
     if not config.SHEET_WEBHOOK_URL:
         return None
     return await sheets_store.push_order(order)

@@ -94,14 +94,32 @@ _lock: asyncio.Lock | None = None
 _lock_loop = None
 
 
-def _stock_lock() -> asyncio.Lock:
-    """Замок на операції із залишками. Створюється в робочому циклі."""
-    global _lock, _lock_loop
+_locks: dict = {}
+_locks_loop = None
+
+
+def _named_lock(name: str) -> asyncio.Lock:
+    """Замок на «читаю-міняю-пишу». Створюється в робочому циклі.
+
+    У Sheets API немає LockService, тож операції, де ми читаємо аркуш і одразу
+    пишемо, серіалізуємо в себе. Цього достатньо: таблицю пише лише бот.
+    """
+    global _locks, _locks_loop
     loop = asyncio.get_running_loop()
-    if _lock is None or _lock_loop is not loop:
-        _lock = asyncio.Lock()
-        _lock_loop = loop
-    return _lock
+    if _locks_loop is not loop:
+        _locks = {}
+        _locks_loop = loop
+    if name not in _locks:
+        _locks[name] = asyncio.Lock()
+    return _locks[name]
+
+
+def _stock_lock() -> asyncio.Lock:
+    return _named_lock("stock")
+
+
+def _orders_lock() -> asyncio.Lock:
+    return _named_lock("orders")
 
 
 def _build():
@@ -145,10 +163,10 @@ def _human(e) -> str:
     code = _status(e)
     text = str(e)
     if code == 403:
-        return ("сервісний акаунт не має доступу до таблиці замовлень — "
-                "додайте його редактором")
+        return ("сервісний акаунт не має доступу до таблиці — додайте його "
+                "редактором")
     if code == 404:
-        return "таблицю замовлень не знайдено (перевірте ORDERS_SHEET_ID)"
+        return "таблицю не знайдено (перевірте ID)"
     if code == 400 and "Unable to parse range" in text:
         return "в таблиці немає потрібного аркуша (перевірте назви аркушів)"
     short = text.split("returned", 1)[-1].strip(' "').split('".', 1)[0]
@@ -422,6 +440,171 @@ async def counts():
     return (f"дропшиперів {len(data['dropshippers'])}, "
             f"назв {len(data['aliases'])}, залишків {len(data['stock'])}, "
             f"максимальний номер замовлення {data['maxorder']}")
+
+
+def _short_id(sheet_id: str) -> str:
+    """ID таблиці для логів — без повного значення."""
+    s = str(sheet_id or "")
+    return (s[:6] + "…" + s[-4:]) if len(s) > 12 else s
+
+
+async def _read_table(sheet_id: str, tab: str, width: int) -> list:
+    """Рядки аркуша з другого (дані під заголовком). Один запит."""
+    last = _col_letter(width)
+
+    def call():
+        return _build().spreadsheets().values().get(
+            spreadsheetId=sheet_id, range=f"{tab}!A2:{last}",
+            valueRenderOption="UNFORMATTED_VALUE",
+            dateTimeRenderOption="FORMATTED_STRING").execute()
+
+    return (await _run(call, f"get {tab}")).get("values") or []
+
+
+def _index_rows(rows: list, key_col: int, art_col: int) -> dict:
+    """{(номер, канонічний артикул): номер рядка у таблиці}.
+
+    Ключ складений: у замовленні з кількох позицій рядків із тим самим
+    номером кілька, і пошук лише за номером перезаписував би перший раз за
+    разом. Артикул зіставляємо канонічним ключем — у прайсі є кириличні
+    двійники літер.
+    """
+    out = {}
+    for n, r in enumerate(rows):
+        no = _text(r, key_col)
+        if not no:
+            continue
+        out.setdefault((no, article_key.canon(_text(r, art_col))), n + 2)
+    return out
+
+
+_known_tabs: set = set()
+
+
+async def ensure_tab(sheet_id: str, tab: str, headers: list):
+    """Створити аркуш із заголовками, якщо його ще немає.
+
+    Таблицю дропшипера раніше готував Apps Script; тепер це робимо ми, бо
+    інакше перший же запис упав би на «Unable to parse range».
+    """
+    if (sheet_id, tab) in _known_tabs:
+        return False
+
+    def meta():
+        return _build().spreadsheets().get(
+            spreadsheetId=sheet_id, fields="sheets.properties.title").execute()
+
+    titles = [s["properties"]["title"]
+              for s in (await _run(meta, "get аркуші")).get("sheets") or []]
+    if tab in titles:
+        _known_tabs.add((sheet_id, tab))
+        return False
+
+    def add():
+        return _build().spreadsheets().batchUpdate(
+            spreadsheetId=sheet_id,
+            body={"requests": [{"addSheet": {"properties": {"title": tab}}}]}
+        ).execute()
+
+    await _run(add, f"addSheet {tab}")
+
+    def head():
+        return _build().spreadsheets().values().update(
+            spreadsheetId=sheet_id, range=f"{tab}!A1",
+            valueInputOption="USER_ENTERED", body={"values": [headers]}).execute()
+
+    await _run(head, f"заголовки {tab}")
+    log.info("У таблиці %s створено аркуш «%s»", _short_id(sheet_id), tab)
+    _known_tabs.add((sheet_id, tab))
+    return True
+
+
+async def write_rows(sheet_id: str, tab: str, headers: list,
+                     updates: list, appends: list):
+    """Оновити наявні рядки й дописати нові. Два запити максимум."""
+    if updates:
+        last = _col_letter(len(headers))
+        data = [{"range": f"{tab}!A{row}:{last}{row}", "values": [vals]}
+                for row, vals in updates]
+
+        def write():
+            return _build().spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={"valueInputOption": "USER_ENTERED", "data": data}).execute()
+
+        await _run(write, f"batchUpdate {tab}")
+
+    if appends:
+        def add():
+            return _build().spreadsheets().values().append(
+                spreadsheetId=sheet_id, range=f"{tab}!A1",
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body={"values": appends}).execute()
+
+        await _run(add, f"append {tab}")
+
+
+async def rows_index(sheet_id: str, tab: str, key_col: int, art_col: int,
+                     width: int, headers: list | None = None) -> dict:
+    """Індекс рядків чужого аркуша (для експорту). Створює аркуш, якщо треба."""
+    if await ensure_tab(sheet_id, tab, headers or []):
+        return {}
+    try:
+        rows = await _read_table(sheet_id, tab, width)
+    except ApiError:
+        # аркуш міг зникнути після того, як ми його побачили (перейменували,
+        # видалили) — забуваємо кеш і створюємо наново, замовлення через це
+        # втрачати не станемо
+        _known_tabs.discard((sheet_id, tab))
+        if await ensure_tab(sheet_id, tab, headers or []):
+            return {}
+        raise
+    return _index_rows(rows, key_col, art_col)
+
+
+async def write_order_rows(rows: list[dict]):
+    """Записати рядки замовлення в головну таблицю. Повертає (скільки, помилка).
+
+    Ідемпотентно: рядок із тим самим номером і артикулом перезаписується, а не
+    дублюється — повторна спроба після обриву зв'язку нічого не псує.
+
+    На відміну від Apps Script, якого поля в переданому рядку немає — лишаємо
+    те, що стоїть у таблиці. Інакше /ttn, що надсилає рядок без «Статусу Nova
+    Poshta», витирав би статус, який уже проставив фоновий цикл.
+    """
+    if not rows:
+        return 0, None
+    async with _orders_lock():
+        try:
+            table = await _read_table(_sheet_id(), ORDERS_TAB, len(ORDER_KEYS))
+        except ApiError as e:
+            return 0, str(e)
+        index = _index_rows(table, ORDER_KEYS.index("order_no") + 1,
+                            ORDER_KEYS.index("article") + 1)
+        updates, appends = [], []
+        for r in rows:
+            key = (str(r.get("order_no") or "").strip(),
+                   article_key.canon(r.get("article")))
+            row_no = index.get(key)
+            old = table[row_no - 2] if row_no else []
+            values = []
+            for i, field in enumerate(ORDER_KEYS):
+                if field in r and r[field] not in (None, ""):
+                    values.append(r[field])
+                else:                       # нема чого писати — лишаємо старе
+                    values.append(_cell(old, i + 1) if row_no else "")
+            if row_no:
+                updates.append((row_no, values))
+            else:
+                appends.append(values)
+                index[key] = -1             # друга позиція того ж замовлення
+        try:
+            await write_rows(_sheet_id(), ORDERS_TAB, ORDER_KEYS,
+                             updates, appends)
+        except ApiError as e:
+            return 0, str(e)
+    return len(rows), None
 
 
 # ─── залишки ─────────────────────────────────────────────────────────────────
