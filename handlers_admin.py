@@ -77,6 +77,50 @@ async def cmd_sync_stock(msg: Message):
     await msg.answer(warehouse_sync.report_text(report)[:4000])
 
 
+@router.message(Command("testorder"))
+async def cmd_testorder(msg: Message):
+    """Перевірити шлях замовлення очима дропшипера, без Нової Пошти."""
+    if not _is_admin(msg.from_user.id):
+        return
+    import order_selftest
+    import sheets_api
+    parts = (msg.text or "").split()
+    do_write = len(parts) > 1 and parts[1].lower() in ("write", "запис")
+    uid = None
+    for p in parts[1:]:
+        if p.isdigit():
+            uid = int(p)
+    uid = uid or order_selftest._who()
+    if not uid:
+        await msg.answer("⚠️ Не знаю, кого перевіряти: немає ні "
+                         "<code>DROPSHIPPER_EXPORT_SHEETS_JSON</code>, ні "
+                         "ID у команді. Спробуйте <code>/testorder write "
+                         "545995767</code>")
+        return
+
+    import stock
+    await stock.rows_for(uid)                 # щоб були персональні назви
+    order_no = "T-" + config.now().strftime("%H%M%S")
+    rows, info = order_selftest.build(uid, order_no)
+    body = [f"🧪 <b>Перевірка замовлення</b> (№{order_no})", ""]
+    body += order_selftest.preview(uid, rows, info)
+    if not do_write:
+        body += ["", "Нічого не записано. Щоб перевірити й запис у таблиці — "
+                 "<code>/testorder write</code>"]
+        await msg.answer("\n".join(body))
+        return
+    if not sheets_api.enabled():
+        body += ["", "⚠️ Прямий доступ вимкнено — запис пішов би через Apps "
+                 "Script, і прибрати за собою бот не зможе. Перевірте "
+                 "/sheetcheck"]
+        await msg.answer("\n".join(body))
+        return
+    await msg.answer("\n".join(body))
+    await msg.answer("⏳ Пишу тестове замовлення…")
+    report = await order_selftest.write_and_clean(rows, order_no)
+    await msg.answer("\n".join(["🧪 <b>Запис і прибирання</b>", ""] + report))
+
+
 @router.message(Command("sheetcheck"))
 async def cmd_sheetcheck(msg: Message):
     """Перевірити прямий доступ до таблиці (Sheets API) і схему аркушів."""

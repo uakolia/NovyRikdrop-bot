@@ -196,3 +196,20 @@ async def check() -> list:
             lines.append(f"❌ <b>{who}</b>: {e} "
                          f"(таблиця {sheets_api._short_id(sheet_id)})")
     return lines
+
+
+async def delete_rows(rows: list[dict], order_no: str):
+    """Прибрати рядки тестового замовлення з таблиць дропшиперів."""
+    where = targets()
+    done, problems = 0, []
+    for r in rows:
+        sheet_id = where.get(str(r.get("dropshipper_id") or "").strip())
+        if not sheet_id:
+            continue
+        n, err = await sheets_api.delete_rows_by_key(
+            sheet_id, TAB, ORDER_NO_COL, order_no, len(HEADERS))
+        done += n
+        if err:
+            problems.append(err)
+        break                     # усі позиції замовлення в одному аркуші
+    return done, "; ".join(problems) or None

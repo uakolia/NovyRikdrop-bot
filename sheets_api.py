@@ -655,6 +655,76 @@ async def write_order_rows(rows: list[dict]):
     return len(rows), None
 
 
+_gids: dict = {}
+
+
+async def tab_gid(sheet_id: str, tab: str) -> int:
+    """Внутрішній номер аркуша — для видалення рядків його треба знати."""
+    key = (sheet_id, tab)
+    if key in _gids:
+        return _gids[key]
+
+    def meta():
+        return _build().spreadsheets().get(
+            spreadsheetId=sheet_id,
+            fields="sheets.properties(sheetId,title)").execute()
+
+    for s in (await _run(meta, "get аркуші")).get("sheets") or []:
+        props = s.get("properties") or {}
+        if props.get("title") == tab:
+            _gids[key] = int(props["sheetId"])
+            return _gids[key]
+    raise ApiError(f"у таблиці немає аркуша «{tab}»")
+
+
+async def delete_rows_by_key(sheet_id: str, tab: str, key_col: int,
+                             key_value: str, width: int):
+    """Видалити рядки, у яких у key_col стоїть РІВНО key_value.
+
+    Потрібно тільки для прибирання тестового замовлення (/testorder). Щоб цим
+    не можна було знести справжні дані, числовий номер не приймаємо взагалі:
+    справжні замовлення нумеруються цілими числами, тестові — «T-HHMMSS».
+    """
+    value = str(key_value).strip()
+    if not value or value.isdigit():
+        return 0, ("видаляти рядки за числовим номером заборонено — це міг би "
+                   "бути справжній номер замовлення")
+    async with _named_lock(f"del:{sheet_id}:{tab}"):
+        try:
+            table = await _read_table(sheet_id, tab, width)
+        except ApiError as e:
+            return 0, str(e)
+        nums = [n + 2 for n, r in enumerate(table)
+                if _text(r, key_col) == value]
+        if not nums:
+            return 0, None
+        try:
+            gid = await tab_gid(sheet_id, tab)
+        except ApiError as e:
+            return 0, str(e)
+        requests = [{"deleteDimension": {"range": {
+            "sheetId": gid, "dimension": "ROWS",
+            "startIndex": n - 1, "endIndex": n}}}
+            for n in sorted(nums, reverse=True)]
+
+        def call():
+            return _build().spreadsheets().batchUpdate(
+                spreadsheetId=sheet_id, body={"requests": requests}).execute()
+
+        try:
+            await _run(call, f"deleteRows {tab}")
+        except ApiError as e:
+            return 0, str(e)
+    return len(nums), None
+
+
+async def delete_order_rows(order_no: str):
+    """Прибрати рядки тестового замовлення з головної таблиці."""
+    return await delete_rows_by_key(_sheet_id(), ORDERS_TAB,
+                                    ORDER_KEYS.index("order_no") + 1,
+                                    order_no, len(ORDER_KEYS))
+
+
 # ─── залишки ─────────────────────────────────────────────────────────────────
 def _col_letter(col: int) -> str:
     out = ""
