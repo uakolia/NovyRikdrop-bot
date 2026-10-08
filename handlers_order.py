@@ -316,8 +316,13 @@ async def show_warehouse(target, state: FSMContext, page: int = 0):
     data = await state.get_data()
     await state.set_state(Order.warehouse)
     await _send(target,
-                f"📍 <b>{data['city']['name']}</b> — оберіть <b>вантажне відділення</b> "
-                "(🏗 вантажні, приймають понад 30 кг):",
+                f"📍 <b>{data['city']['name']}</b> — оберіть відділення:\n\n"
+                "🏗 <b>вантажне</b> — приймає понад 30 кг\n"
+                "🏢 звичайне — у підписі видно ліміт ваги\n\n"
+                "⚠️ <i>Більшість ялинок має йти саме на вантажне: у звичайному "
+                "відділенні великий габарит можуть не прийняти. Звичайне "
+                "підходить для дрібниці — ікебани, віночка, настінної "
+                "ялинки.</i>",
                 reply_markup=kb.warehouses_kb(data["warehouses"], page,
                                               back_step="warehouse"))
 
@@ -730,7 +735,7 @@ async def pick_delivery_warehouse(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     city = data["city"]
     try:
-        whs = await np.cargo_warehouses(city["ref"])
+        whs = await np.city_warehouses(city["ref"])
     except np.NPError as e:
         await cb.message.edit_text(f"⚠️ Помилка Нової Пошти: {e}")
         await cb.answer()
@@ -738,8 +743,8 @@ async def pick_delivery_warehouse(cb: CallbackQuery, state: FSMContext):
     if not whs:
         await state.update_data(warehouses=[])
         await cb.message.edit_text(
-            f"⚠️ У місті <b>{city['name']}</b> немає вантажних відділень "
-            "(потрібне таке, що приймає понад 30 кг).\n\n"
+            f"⚠️ У місті <b>{city['name']}</b> Нова Пошта не показала жодного "
+            "відділення (лише поштомати, яких нам не підходять).\n\n"
             "Оберіть адресну доставку або інше місто:",
             reply_markup=_back_kb("warehouse", [[InlineKeyboardButton(
                 text="🚚 Адресна доставка", callback_data="dlv:door")]]))
