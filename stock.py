@@ -14,7 +14,9 @@
 Товар БЕЗ рядка в цьому аркуші замовляється як завжди, просто без залишку:
 available() віддає None, і бот нічого не резервує.
 """
+import asyncio
 import logging
+import time
 
 import article_key
 import config
@@ -102,6 +104,11 @@ async def refresh():
     return apply_rows(rows), None
 
 
+def _mark_read():
+    global _last_read
+    _last_read = time.monotonic()
+
+
 def apply_rows(rows) -> int:
     """Застосувати вже прочитані рядки «Залишків дропшиперів».
 
@@ -118,6 +125,7 @@ def apply_rows(rows) -> int:
     _cache.clear()
     _cache.update(fresh)
     _stale.clear()
+    _mark_read()
     return sum(len(v) for v in fresh.values())
 
 
@@ -126,14 +134,60 @@ def all_rows() -> list:
     return [r for by_user in _cache.values() for r in by_user.values()]
 
 
+# Читання всього аркуша «Залишки дропшиперів» — найдорожча операція на шляху
+# кліку: через Apps Script це 1–3 с, а якщо таблиця не відповідає, то ще й
+# таймаут із повтором. Дропшипер при цьому дивиться на застигле меню.
+# Тому на кліку таблицю НЕ чекаємо: віддаємо те, що в кеші, а перечитування
+# пускаємо у фон — свіжі числа будуть на наступному екрані. Чекаємо лише коли
+# в кеші взагалі нічого немає (перший клік після деплою, якщо старт не встиг).
+STOCK_COOLDOWN = 30          # не частіше ніж раз на стільки секунд на всіх
+_last_read = 0.0
+_reading: "asyncio.Task | None" = None
+
+
+def _fresh_enough() -> bool:
+    return (time.monotonic() - _last_read) < STOCK_COOLDOWN
+
+
+async def _refresh_logged():
+    global _last_read
+    _last_read = time.monotonic()
+    n, err = await refresh()
+    if err:
+        log.warning("Залишки не перечитались: %s", err)
+    return n, err
+
+
+def refresh_soon():
+    """Перечитати залишки у фоні, якщо давно не читали. Не блокує клік."""
+    global _reading
+    if _fresh_enough():
+        return
+    if _reading is not None and not _reading.done():
+        return
+    try:
+        _reading = asyncio.create_task(_refresh_logged())
+    except RuntimeError:                     # поза робочим циклом (тести)
+        _reading = None
+
+
 async def rows_for(user_id) -> dict:
-    """{канонічний_артикул: рядок} цього дропшипера (з кешу або з таблиці)."""
+    """{канонічний_артикул: рядок} цього дропшипера.
+
+    Кеш головніший за свіжість: застарілі на пів хвилини числа краще, ніж
+    секунди очікування на кожному натисканні.
+    """
     uid = _key(user_id)
-    if uid not in _cache or uid in _stale:
-        _, err = await refresh()
-        if err:
-            log.warning("Залишки не прочитались: %s", err)
-            return _cache.get(uid) or {}     # краще застарілі числа, ніж нічого
+    rows = _cache.get(uid)
+    if rows:
+        if uid in _stale:
+            refresh_soon()                   # підтягнемо до наступного екрана
+        return rows
+    # у кеші нічого — тут уже доводиться чекати, інакше не буде ні кількостей,
+    # ні персональних назв
+    if _fresh_enough():
+        return _cache.get(uid) or {}
+    await _refresh_logged()
     return _cache.get(uid) or {}
 
 

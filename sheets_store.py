@@ -52,7 +52,7 @@ NEED_UPDATE = ("скрипт таблиці старої версії. Apps Scri
 # запис попереднього замовлення), скрипт цілком законно відповідає пізніше.
 # Двадцяти секунд не вистачало: резерв падав із «таблиця не відповіла за
 # відведений час» саме тоді, коли скрипт ще чекав на замок.
-READ_TIMEOUT = aiohttp.ClientTimeout(total=25)
+READ_TIMEOUT = aiohttp.ClientTimeout(total=15)
 WRITE_TIMEOUT = aiohttp.ClientTimeout(total=60)
 
 # Apps Script інколи виконує запис, але відповідь губиться на переадресації
