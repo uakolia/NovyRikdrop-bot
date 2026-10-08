@@ -1055,8 +1055,8 @@ async def _create_ttn(rows, data, user, to_door: bool):
         row["ttn"] = res["ttn"]
         row["status"] = "ТТН створено"
     note = f"\n📦 <b>ТТН: <code>{res['ttn']}</code></b>"
-    if res.get("estimated_date"):
-        note += f"\n🗓 Орієнтовна доставка: {res['estimated_date']}"
+    # орієнтовну дату НП дропшиперу не показуємо: вона часто не збігається
+    # з дійсністю, а клієнт чує її як обіцянку магазину
     if seats > 1:
         note += f"\n📦 Місць у відправленні: {seats}"
     return True, note
