@@ -127,7 +127,7 @@ async def _push(rows: list[dict]) -> str | None:
     by_sheet: dict[str, list[dict]] = {}
     where = targets()
     for r in rows:
-        sheet_id = where.get(str(r.get("dropshipper_id") or "").strip())
+        sheet_id = where.get(sheets_api._as_id(r.get("dropshipper_id")))
         if sheet_id:
             by_sheet.setdefault(sheet_id, []).append(r)
     if not by_sheet:
@@ -203,7 +203,7 @@ async def delete_rows(rows: list[dict], order_no: str):
     where = targets()
     done, problems = 0, []
     for r in rows:
-        sheet_id = where.get(str(r.get("dropshipper_id") or "").strip())
+        sheet_id = where.get(sheets_api._as_id(r.get("dropshipper_id")))
         if not sheet_id:
             continue
         n, err = await sheets_api.delete_rows_by_key(

@@ -263,6 +263,25 @@ def _cell(row: list, col: int):
     return row[col - 1] if len(row) >= col else ""
 
 
+def _as_id(value) -> str:
+    """Telegram ID рядком — однаково з таблиці й з коду.
+
+    Sheets віддає числові клітинки числами, і ID інколи приходить як
+    545995767.0. Пряме порівняння рядків тоді не збігається, і дропшипер не
+    бачить СВОГО замовлення (чужого, на щастя, теж — помилка безпечна, але
+    від цього не менш неприємна). Тому ціле число завжди зводимо до цілого.
+    """
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if isinstance(value, int):
+        return str(value)
+    return str(value if value is not None else "").strip()
+
+
+def _id_at(row: list, col: int) -> str:
+    return _as_id(_cell(row, col))
+
+
 def _text(row: list, col: int) -> str:
     v = _cell(row, col)
     return str(v).strip() if v is not None else ""
@@ -303,7 +322,7 @@ def _drops(rows) -> list:
     for r in rows:
         if not _text(r, 1):
             continue
-        out.append({"tg_id": _text(r, 1), "name": _text(r, 2),
+        out.append({"tg_id": _id_at(r, 1), "name": _text(r, 2),
                     "username": _text(r, 3),
                     "status": _text(r, 4) or "схвалений",
                     "tier": _text(r, DROP_TIER_COL)})
@@ -311,7 +330,7 @@ def _drops(rows) -> list:
 
 
 def _aliases(rows) -> list:
-    return [{"tg_id": _text(r, 1), "key": _text(r, 2), "name": _text(r, 3)}
+    return [{"tg_id": _id_at(r, 1), "key": _text(r, 2), "name": _text(r, 3)}
             for r in rows if _text(r, 1) and _text(r, 2) and _text(r, 3)]
 
 
@@ -322,7 +341,7 @@ def _stock(rows) -> list:
         if not art:
             continue
         out.append({
-            "tg_id": _text(r, STOCK_COLS["tg_id"]),
+            "tg_id": _id_at(r, STOCK_COLS["tg_id"]),
             "dropshipper": _text(r, STOCK_COLS["dropshipper"]),
             "article": art,
             # назву обрізаємо: вона потрапляє в опис ТТН на паперовій накладній
@@ -358,10 +377,10 @@ async def read_orders(user_id, limit: int = 10):
         rows = await _order_rows()
     except ApiError as e:
         return None, str(e)
-    want = str(user_id or "").strip()
+    want = _as_id(user_id) if user_id else ""
     out = []
     for r in reversed(rows):
-        if want and str(r.get("dropshipper_id") or "").strip() != want:
+        if want and _as_id(r.get("dropshipper_id")) != want:
             continue
         out.append(r)
         if len(out) >= limit:
@@ -386,7 +405,7 @@ async def read_ttns():
         out.append({"order_no": r.get("order_no"),
                     "created_at": r.get("created_at"),
                     "ttn": ttn,
-                    "tg_id": str(r.get("dropshipper_id") or "").strip(),
+                    "tg_id": _as_id(r.get("dropshipper_id")),
                     "article": str(r.get("article") or "").strip(),
                     "qty": r.get("qty"),
                     "phone": str(r.get("recipient_phone") or "").strip(),
@@ -745,7 +764,7 @@ async def stock_op_many(op: str, user_id, items: list[dict]):
     """
     single = op in ("reserve", "receive", "release")
     kind = op.replace("_many", "")
-    tg = str(user_id).strip()
+    tg = _as_id(user_id)
     want = [{"article": str(i["article"]), "qty": int(i["qty"])} for i in items]
     if not want:
         return {"ok": True, "items": []}, None
@@ -770,7 +789,7 @@ async def stock_op_many(op: str, user_id, items: list[dict]):
             if state is None:
                 found = None
                 for n, r in enumerate(rows):
-                    if (_text(r, STOCK_COLS["tg_id"]) == tg
+                    if (_id_at(r, STOCK_COLS["tg_id"]) == tg
                             and article_key.canon(
                                 _text(r, STOCK_COLS["article"])) == key):
                         found = (n + 2, r)
