@@ -173,15 +173,24 @@ async def fetch_statuses(docs: list[dict]) -> dict:
     return out
 
 
-async def poll_once(bot=None):
-    """Один прохід. Повертає (скільки оновлено, помилка)."""
+async def poll_once(bot=None, stats: dict | None = None):
+    """Один прохід. Повертає (скільки оновлено, помилка).
+
+    stats — необов'язковий словник, куди складаємо, що саме сталося: «нуль
+    оновлених» однаково виглядає і коли накладних немає, і коли НП не
+    відповіла, і коли статуси справді ті самі. Для /np_sync різниця критична.
+    """
     import sheets_store
     import stock
+    if stats is None:
+        stats = {}
+    stats.setdefault("lines", [])
     if not sheets_store.enabled():
         return 0, None
     rows, err = await sheets_store.fetch_ttns()
     if err:
         return 0, err
+    stats["rows"] = len(rows or [])
     if not rows:
         log.info("Немає накладних для перевірки (усі статуси кінцеві або ТТН "
                  "ще не створені)")
@@ -194,19 +203,28 @@ async def poll_once(bot=None):
         if ttn:
             by_ttn.setdefault(ttn, []).append(r)
 
+    stats["ttns"] = len(by_ttn)
     log.info("Перевіряю статуси НП: накладних %d, рядків %d",
              len(by_ttn), len(rows))
     statuses = await fetch_statuses(
         [{"ttn": ttn, "phone": group[0].get("phone", "")}
          for ttn, group in by_ttn.items()])
+    stats["answered"] = len(statuses)
     updates = []
     for ttn, group in by_ttn.items():
         fresh = statuses.get(ttn)
         if not fresh:
+            stats["lines"].append(f"❔ …{ttn[-4:]}: НП не відповіла про цю "
+                                  f"накладну")
+            log.warning("ТТН %s: НП не повернула статус (номер або телефон "
+                        "не збігаються з накладною?)", ttn)
             continue
         head = group[0]
         was_text = str(head.get("np_status") or "").strip()
         changed = fresh["status"] != was_text
+        stats["lines"].append(
+            f"{'🔄' if changed else '➖'} …{ttn[-4:]}: "
+            f"{was_text or '—'} → {fresh['status']}")
         was, now = category_of_text(was_text), category(fresh["code"])
 
         if now == "missing":

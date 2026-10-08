@@ -396,7 +396,9 @@ async def read_ttns():
         return None, str(e)
     out = []
     for r in rows:
-        ttn = str(r.get("ttn") or "").strip()
+        # номер накладної в таблиці — число, і Sheets віддає його числом;
+        # «20451556069730.0» Нова Пошта не знайшла б
+        ttn = _as_id(r.get("ttn"))
         if not ttn:
             continue
         st = str(r.get("np_status") or "").strip().lower()

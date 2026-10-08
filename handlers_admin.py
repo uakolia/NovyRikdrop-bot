@@ -164,17 +164,39 @@ async def cmd_np_sync(msg: Message):
         return
     import np_tracking
     await msg.answer("⏳ Питаю Нову Пошту про статуси…")
+    stats = {}
     try:
-        n, err = await np_tracking.poll_once(msg.bot)
+        n, err = await np_tracking.poll_once(msg.bot, stats)
     except Exception as e:  # noqa: BLE001
         await msg.answer(f"⚠️ Не вдалося: {e}")
         return
     if err:
         await msg.answer(f"⚠️ {err}")
+        return
+    # «Оновлено 0» однаково виглядає і коли накладних немає, і коли НП не
+    # відповіла, і коли статуси справді ті самі — тому показуємо, що саме
+    body = [f"✅ <b>Готово. Оновлено рядків: {n}</b>", ""]
+    rows, ttns = stats.get("rows", 0), stats.get("ttns", 0)
+    answered = stats.get("answered", 0)
+    if not rows:
+        body.append("У таблиці немає накладних для перевірки: або ТТН ще не "
+                    "створені, або в усіх уже кінцевий статус (отримано, "
+                    "повернуто, видалено).")
     else:
-        await msg.answer(f"✅ Готово. Оновлено рядків: {n}\n\n"
-                         "0 означає, що в НП статуси ще ті самі — "
-                         "у таблиці пишемо лише зміни.")
+        body.append(f"Накладних у роботі: <b>{ttns}</b> (рядків {rows}), "
+                    f"НП відповіла про <b>{answered}</b>")
+        if answered < ttns:
+            body.append("❔ Про решту НП статусу не дала — перевірте номер "
+                        "накладної й телефон отримувача в таблиці: для "
+                        "повного статусу вони мусять збігатися з накладною.")
+        if n == 0 and answered:
+            body.append("Статуси в НП ті самі, що в таблиці — писати нічого.")
+        lines = stats.get("lines") or []
+        if lines:
+            body += ["", "<b>Що каже НП</b>"] + lines[:15]
+            if len(lines) > 15:
+                body.append(f"…і ще {len(lines) - 15}")
+    await msg.answer("\n".join(body)[:4000])
 
 
 @router.message(Command("np_setup"))
