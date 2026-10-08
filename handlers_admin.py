@@ -103,7 +103,9 @@ async def cmd_sheetcheck(msg: Message):
     body = ([head, f"Читання заголовків: {ms:.0f} мс", ""]
             + sheets_api.settings_report() + [""] + lines)
     if ok:
-        body += ["", "📊 " + await sheets_api.counts()]
+        import dropshipper_export
+        body += ["", "📊 " + await sheets_api.counts(),
+                 "", "<b>Таблиці дропшиперів</b>"] + await dropshipper_export.check()
     else:
         body += ["", "Поки схема не зійдеться, прямим читанням довіряти не "
                  "можна: бот брав би сусідню колонку. Приведіть заголовки до "

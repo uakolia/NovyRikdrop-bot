@@ -165,3 +165,34 @@ async def _push_one(sheet_id: str, rows: list[dict]):
             # знову піти в append, якщо артикул той самий
             existing[key] = -1
     await sheets_api.write_rows(sheet_id, TAB, HEADERS, updates, appends)
+
+
+async def check() -> list:
+    """Чи дійсно можемо писати в таблиці дропшиперів — рядки для адміна.
+
+    Без цієї перевірки збій виявився б лише на першому справжньому
+    замовленні: немає доступу, не той ID, перейменований аркуш.
+    """
+    where = targets()
+    if not where:
+        return ["⚠️ <b>Експорт дропшиперам</b>: не налаштовано "
+                "(DROPSHIPPER_EXPORT_SHEETS_JSON) — замовлення пишуться лише "
+                "в головну таблицю"]
+    lines = []
+    for tg_id, sheet_id in where.items():
+        who = tg_id
+        try:
+            import storage
+            info = (storage._approved_cache.get(str(tg_id))
+                    or storage._load()["approved"].get(str(tg_id)) or {})
+            who = info.get("name") or tg_id
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            rows = await sheets_api._read_table(sheet_id, TAB, len(HEADERS))
+            lines.append(f"✅ <b>{who}</b>: таблиця {sheets_api._short_id(sheet_id)}, "
+                         f"аркуш «{TAB}», рядків {len(rows)}")
+        except sheets_api.ApiError as e:
+            lines.append(f"❌ <b>{who}</b>: {e} "
+                         f"(таблиця {sheets_api._short_id(sheet_id)})")
+    return lines
