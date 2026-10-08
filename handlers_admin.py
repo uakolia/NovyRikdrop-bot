@@ -157,6 +157,64 @@ async def cmd_sheetcheck(msg: Message):
     await msg.answer("\n".join(body))
 
 
+@router.message(Command("npttn"))
+async def cmd_np_ttn(msg: Message):
+    """/npttn <номер> — спитати НП про одну накладну й виправити таблицю.
+
+    Потрібно, коли в таблиці стоїть статус, який більше не відповідає
+    дійсності: бот опитує не всі рядки (накладні з кінцевим статусом
+    свідомо пропускає), тож одна команда рятує від ручного правлення.
+    """
+    if not _is_admin(msg.from_user.id):
+        return
+    parts = (msg.text or "").split()
+    ttn = re.sub(r"\D", "", parts[1]) if len(parts) > 1 else ""
+    if not ttn:
+        await msg.answer("Використання: <code>/npttn 20451554177513</code>")
+        return
+    import np_tracking
+    import sheets_api
+    await msg.answer(f"⏳ Питаю НП про <code>{ttn}</code>…")
+
+    rows, err = await sheets_store.fetch_orders(0, 500)
+    if err:
+        await msg.answer(f"⚠️ Таблиця не відповіла: {err}")
+        return
+    mine = [r for r in (rows or []) if str(r.get("ttn") or "").strip() == ttn]
+    was = str((mine[0].get("np_status") if mine else "") or "").strip()
+    phone = str((mine[0].get("recipient_phone") if mine else "") or "").strip()
+
+    try:
+        statuses = await np_tracking.fetch_statuses([{"ttn": ttn, "phone": phone}])
+    except Exception as e:  # noqa: BLE001
+        await msg.answer(f"⚠️ НП не відповіла: {e}")
+        return
+    fresh = statuses.get(ttn)
+    if not fresh:
+        await msg.answer(
+            f"❔ НП не дала статусу по <code>{ttn}</code>.\n"
+            f"У таблиці: <b>{was or '—'}</b>\n\n"
+            "Найчастіше це означає, що номера немає в НП (видалено назовсім) "
+            "або телефон отримувача в таблиці не той, що в накладній.")
+        return
+
+    body = [f"📦 <code>{ttn}</code>",
+            f"У таблиці: <b>{was or '—'}</b>",
+            f"НП каже: <b>{fresh['status']}</b> (код {fresh['code']})"]
+    if not mine:
+        body.append("\n⚠️ Рядка з цією накладною в таблиці немає — писати "
+                    "нікуди. Перевірте номер.")
+    elif fresh["status"] == was:
+        body.append("\nЗбігається, правити нічого.")
+    else:
+        n, perr = await sheets_store.push_ttn_statuses(
+            [{"ttn": ttn, "np_status": fresh["status"]}])
+        body.append(f"\n✅ Оновлено рядків: {n}" if not perr
+                    else f"\n⚠️ Не записалось: {perr}")
+        body.append(f"Замовлення №{mine[0].get('order_no', '?')}")
+    await msg.answer("\n".join(body))
+
+
 @router.message(Command("np_sync"))
 async def cmd_np_sync(msg: Message):
     """Перевірити статуси НП прямо зараз, не чекаючи щогодинного циклу."""
