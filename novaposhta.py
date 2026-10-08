@@ -226,6 +226,9 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
         "SeatsAmount": str(seats),
         "ServiceType": service_type,
         "Description": safe_description(description),
+        # те саме дублюємо в «Додаткову інформацію про відправлення»: на
+        # паперовій накладній це окреме поле, і склад шукає ялинку саме там
+        "AdditionalInformation": safe_description(description),
         "Cost": str(int(cost)),
         "CitySender": s["city_ref"],
         "Sender": s["sender_ref"],

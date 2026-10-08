@@ -47,7 +47,7 @@ class Order(StatesGroup):
 PREV = {
     "model": "category", "variant": "model", "qty": "variant",
     "payment": "cart", "sale_price": "payment", "prepaid": "sale_price",
-    "lname": "payment", "fname": "lname", "mname": "fname",
+    "lname": "prepaid", "fname": "lname", "mname": "fname",
     "phone": "mname", "city": "phone", "city_pick": "city",
     "delivery": "city_pick", "warehouse": "delivery", "street": "delivery",
     "street_pick": "street", "building": "street_pick", "flat": "building",
@@ -240,7 +240,9 @@ async def show_payment(target, state: FSMContext):
 async def show_sale_price(target, state: FSMContext):
     await state.set_state(Order.sale_price)
     await _send(target, "💰 Введіть <b>вашу ціну продажу</b> для клієнта, грн\n"
-                        "(наприклад: <i>4500</i>)",
+                        "(наприклад: <i>4500</i>)\n\n"
+                        "<i>Це буде оцінена вартість (страхова сума) "
+                        "у накладній Нової Пошти.</i>",
                 reply_markup=_back_kb("sale_price"))
 
 
@@ -482,8 +484,6 @@ async def go_back(cb: CallbackQuery, state: FSMContext):
     # пропускаємо кроки, яких не було в цьому сценарії
     if prev == "prepaid" and data.get("payment") != "часткова":
         prev = "sale_price"
-    if prev == "sale_price" and data.get("payment") == "передплата":
-        prev = "payment"
     if prev == "mname" and not data.get("lname"):
         prev = "payment"
     await SHOW[prev](cb, state)
@@ -590,11 +590,9 @@ def _valid_name(text: str) -> str | None:
 async def pick_payment(cb: CallbackQuery, state: FSMContext):
     payment = cb.data.split(":", 1)[1]
     await state.update_data(payment=payment)
-    if payment == "передплата":
-        await state.update_data(sale_price=0, prepaid=0, cod_amount=0)
-        await show_lname(cb, state)
-    else:
-        await show_sale_price(cb, state)
+    # ціну продажу питаємо в будь-якому разі: вона йде в накладну як оцінена
+    # вартість (страхова сума), а не лише для розрахунку післяплати
+    await show_sale_price(cb, state)
     await cb.answer()
 
 
@@ -608,8 +606,11 @@ async def input_sale_price(msg: Message, state: FSMContext):
     data = await state.get_data()
     await state.update_data(sale_price=amount)
     if data["payment"] == "часткова":
-        await state.update_data(sale_price=amount)
         await show_prepaid(msg, state)
+    elif data["payment"] == "передплата":
+        # уже оплачено повністю: при отриманні клієнт не платить нічого
+        await state.update_data(prepaid=amount, cod_amount=0)
+        await show_lname(msg, state)
     else:
         await state.update_data(prepaid=0, cod_amount=amount)
         await show_lname(msg, state)
@@ -951,17 +952,31 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
             to_reserve.append({"article": it["article"], "qty": it["qty"]})
     if to_reserve:
         res, res_err = await stock.reserve_many(user.id, to_reserve)
-        if res_err:
-            missing = (res or {}).get("items") or []
-            text = (stock.not_enough_text(missing) if res_err == "not enough"
-                    else "❌ <b>Замовлення не оформлено</b>\n\n"
-                         + stock.error_text(res_err))
-            await out.edit_text(text)
+        if res_err == "not enough":
+            # єдина причина справді скасувати: товару фізично немає
+            await out.edit_text(stock.not_enough_text((res or {}).get("items") or []))
             await _tell_admin(out.bot,
                               f"⚠️ Резерв не пройшов (замовлення №"
                               f"{common['order_no']}, {common['dropshipper']}): "
-                              f"{res_err}")
+                              f"товару не вистачає")
             return
+        if res_err:
+            # Збій ЗВ'ЯЗКУ з таблицею, а не відмова. Скрипт міг записати резерв
+            # і втратити відповідь, тож скасовувати замовлення через це —
+            # найгірше з рішень: дропшипер уже взяв гроші з клієнта. Оформлюємо
+            # далі, а резерв лишаємо на адміна.
+            log.warning("Резерв замовлення №%s не підтверджено: %s",
+                        common["order_no"], res_err)
+            for r in rows:
+                r["comment"] = ((r.get("comment", "") + "; ") if r.get("comment")
+                                else "") + "резерв не підтверджено"
+            await _tell_admin(
+                out.bot,
+                f"⚠️ Резерв не підтверджено (замовлення №"
+                f"{common['order_no']}, {common['dropshipper']}): {res_err}\n"
+                f"Замовлення оформлюється далі. Перевірте колонку «Резерв» у "
+                f"«Залишках дропшиперів»: операція могла пройти, а відповідь "
+                f"загубитися. Якщо резерву немає — впишіть вручну.")
 
     # ---- одна накладна на все замовлення ----
     ttn_note = ""
@@ -999,7 +1014,10 @@ async def _create_ttn(rows, data, user, to_door: bool):
     weight = sum((it["weight_kg"] or 5) * q for it, q in items)
     volume = sum((it.get("volume_m3") or 0) * q for it, q in items)
     seats = sum(q for _, q in items)
-    cost = sum(int(r["price_drop"] or 0) for r in rows)
+    # Оцінена вартість у накладній — ціна продажу клієнту: саме на цю суму НП
+    # страхує відправлення. Дроп-ціна тут була б заниженою страховкою.
+    cost = int(data.get("sale_price") or 0) or sum(
+        int(r["price_drop"] or 0) for r in rows)
 
     try:
         res = await np.create_ttn(

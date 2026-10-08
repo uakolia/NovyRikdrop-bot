@@ -128,6 +128,10 @@ async def create_for_order(order_no: str, force: bool = False):
         raise RetryError("у каталозі немає артикулів: " + ", ".join(unknown)
                          + ". Спробуйте /reload")
 
+    # страхова сума — ціна продажу клієнту (одна на замовлення), не дроп-ціна
+    sale = int(_num(head.get("sale_price")))
+    if sale:
+        cost = sale
     first = catalog.by_article(str(head.get("article") or ""))
     if len(rows) == 1:
         description = catalog.ttn_description(first,
