@@ -234,6 +234,17 @@ async def cmd_np_sync(msg: Message):
     # «Оновлено 0» однаково виглядає і коли накладних немає, і коли НП не
     # відповіла, і коли статуси справді ті самі — тому показуємо, що саме
     body = [f"✅ <b>Готово. Оновлено рядків: {n}</b>", ""]
+    last = np_tracking.LAST_RUN
+    if last.get("at"):
+        body.append(f"🕑 Щогодинний цикл: остання перевірка {last['at']}, "
+                    f"накладних {last.get('ttns', 0)}, оновлено "
+                    f"{last.get('updated', 0)}"
+                    + (f", помилка: {last['error']}" if last.get("error") else ""))
+    else:
+        body.append(f"🕑 Щогодинний цикл ще не проходив (перша перевірка через "
+                    f"{np_tracking.FIRST_RUN_DELAY} с після старту, далі кожні "
+                    f"{config.TTN_POLL_SECONDS // 60} хв)")
+    body.append("")
     rows, ttns = stats.get("rows", 0), stats.get("ttns", 0)
     answered = stats.get("answered", 0)
     if not rows:

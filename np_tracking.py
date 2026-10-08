@@ -376,6 +376,10 @@ async def _apply_transition(bot, group: list, now: str, fresh: dict, stock):
 FIRST_RUN_DELAY = 60
 
 
+# коли останній раз проходив цикл і що знайшов — для /np_sync
+LAST_RUN: dict = {}
+
+
 async def run_forever(bot):
     """Фоновий цикл. Будь-яка помилка всередині не має вбивати задачу."""
     period = config.TTN_POLL_SECONDS
@@ -389,12 +393,24 @@ async def run_forever(bot):
         await asyncio.sleep(delay)
         delay = period
         try:
-            n, err = await poll_once(bot)
+            stats = {}
+            n, err = await poll_once(bot, stats)
+            LAST_RUN.clear()
+            LAST_RUN.update({"at": config.now().strftime("%d.%m %H:%M"),
+                             "updated": n, "error": err,
+                             "ttns": stats.get("ttns", 0),
+                             "answered": stats.get("answered", 0)})
             if err:
                 log.warning("Статуси НП не оновились: %s", err)
             else:
                 # пишемо і нулі: так у логах видно, що цикл живий
                 log.info("Статуси НП перевірено, оновлено рядків: %d", n)
+                changed = [l for l in stats.get("lines", [])
+                           if l.startswith(("🔄", "❔"))]
+                if changed and bot:
+                    await _tell_admin(
+                        bot, "🔄 <b>Статуси Нової Пошти</b>\n"
+                             + "\n".join(changed[:15]))
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001
