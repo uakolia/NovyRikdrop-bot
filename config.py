@@ -74,7 +74,10 @@ SHEET_WEBHOOK_URL = os.getenv("SHEET_WEBHOOK_URL", "")
 # ID таблиці замовлень. Якщо задано (і є GOOGLE_SERVICE_ACCOUNT_JSON, а
 # сервісний акаунт — редактор цієї таблиці), читання й операції із залишками
 # ідуть напряму через Sheets API, без Apps Script. Порожнє — усе як раніше.
-ORDERS_SHEET_ID = os.getenv("ORDERS_SHEET_ID", "")
+# Приймаємо обидві назви: в Railway змінну завели як ORDER_SHEET_ID, і
+# ламати робоче налаштування через одну літеру не варто.
+ORDERS_SHEET_ID = (os.getenv("ORDERS_SHEET_ID", "")
+                   or os.getenv("ORDER_SHEET_ID", "")).strip()
 
 # Куди дублювати замовлення дропшиперам: {"<telegram id>": "<id таблиці>"}.
 # Той самий формат, що був у Властивостях Apps Script.

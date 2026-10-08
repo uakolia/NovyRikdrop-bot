@@ -94,7 +94,10 @@ def settings_report() -> list:
     """
     lines = []
     sid = _sheet_id()
-    lines.append(f"ORDERS_SHEET_ID: {'✅ ' + _short_id(sid) if sid else '❌ не задано'}")
+    name = ("ORDERS_SHEET_ID" if os.getenv("ORDERS_SHEET_ID")
+            else "ORDER_SHEET_ID" if os.getenv("ORDER_SHEET_ID")
+            else "ORDERS_SHEET_ID / ORDER_SHEET_ID")
+    lines.append(f"{name}: {'✅ ' + _short_id(sid) if sid else '❌ не задано'}")
 
     raw = (config.GOOGLE_SERVICE_ACCOUNT_JSON or "").strip()
     if not raw:
