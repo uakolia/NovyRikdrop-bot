@@ -15,7 +15,8 @@
    "price_drop1": 3547.0,
    "price_drop2": 3648.0,
    "price_drop3": 3784.0,
-   "price_retail_min": 4730.0
+   "price_retail_min": 4730.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian/ Українська",
@@ -32,7 +33,8 @@
    "price_drop1": 5025.0,
    "price_drop2": 5169.0,
    "price_drop3": 5360.0,
-   "price_retail_min": 6700.0
+   "price_retail_min": 6700.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian/ Українська",
@@ -49,7 +51,8 @@
    "price_drop1": 6725.0,
    "price_drop2": 6917.0,
    "price_drop3": 7173.0,
-   "price_retail_min": 8966.0
+   "price_retail_min": 8966.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian/ Українська",
@@ -66,7 +69,8 @@
    "price_drop1": 8322.0,
    "price_drop2": 8559.0,
    "price_drop3": 8876.0,
-   "price_retail_min": 11096.0
+   "price_retail_min": 11096.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian/ Українська",
@@ -83,7 +87,8 @@
    "price_drop1": 10335.0,
    "price_drop2": 10630.0,
    "price_drop3": 11024.0,
-   "price_retail_min": 13780.0
+   "price_retail_min": 13780.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian/ Українська",
@@ -100,7 +105,8 @@
    "price_drop1": 13645.0,
    "price_drop2": 14034.0,
    "price_drop3": 14554.0,
-   "price_retail_min": 18193.0
+   "price_retail_min": 18193.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian/ Українська",
@@ -117,7 +123,8 @@
    "price_drop1": 17626.0,
    "price_drop2": 18130.0,
    "price_drop3": 18801.0,
-   "price_retail_min": 23501.0
+   "price_retail_min": 23501.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian/ Українська",
@@ -134,7 +141,8 @@
    "price_drop1": 25158.0,
    "price_drop2": 25877.0,
    "price_drop3": 26835.0,
-   "price_retail_min": 33544.0
+   "price_retail_min": 33544.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian/ Українська",
@@ -151,7 +159,8 @@
    "price_drop1": 33311.0,
    "price_drop2": 34263.0,
    "price_drop3": 35531.0,
-   "price_retail_min": 44414.0
+   "price_retail_min": 44414.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -168,7 +177,8 @@
    "price_drop1": 4908.0,
    "price_drop2": 5049.0,
    "price_drop3": 5236.0,
-   "price_retail_min": 6544.0
+   "price_retail_min": 6544.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -185,7 +195,8 @@
    "price_drop1": 6680.0,
    "price_drop2": 6871.0,
    "price_drop3": 7125.0,
-   "price_retail_min": 8906.0
+   "price_retail_min": 8906.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -202,7 +213,8 @@
    "price_drop1": 8805.0,
    "price_drop2": 9057.0,
    "price_drop3": 9392.0,
-   "price_retail_min": 11740.0
+   "price_retail_min": 11740.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -219,7 +231,8 @@
    "price_drop1": 11052.0,
    "price_drop2": 11368.0,
    "price_drop3": 11789.0,
-   "price_retail_min": 14736.0
+   "price_retail_min": 14736.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -236,7 +249,8 @@
    "price_drop1": 14353.0,
    "price_drop2": 14763.0,
    "price_drop3": 15309.0,
-   "price_retail_min": 19137.0
+   "price_retail_min": 19137.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -253,7 +267,8 @@
    "price_drop1": 18491.0,
    "price_drop2": 19019.0,
    "price_drop3": 19724.0,
-   "price_retail_min": 24655.0
+   "price_retail_min": 24655.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -270,7 +285,8 @@
    "price_drop1": 23683.0,
    "price_drop2": 24360.0,
    "price_drop3": 25262.0,
-   "price_retail_min": 31577.0
+   "price_retail_min": 31577.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -287,7 +303,8 @@
    "price_drop1": 35950.0,
    "price_drop2": 36977.0,
    "price_drop3": 38346.0,
-   "price_retail_min": 47933.0
+   "price_retail_min": 47933.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost/Українська засніжена",
@@ -304,7 +321,8 @@
    "price_drop1": 47609.0,
    "price_drop2": 48969.0,
    "price_drop3": 50783.0,
-   "price_retail_min": 63479.0
+   "price_retail_min": 63479.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -321,7 +339,8 @@
    "price_drop1": 3991.0,
    "price_drop2": 4105.0,
    "price_drop3": 4257.0,
-   "price_retail_min": 5321.0
+   "price_retail_min": 5321.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -338,7 +357,8 @@
    "price_drop1": 5944.0,
    "price_drop2": 6114.0,
    "price_drop3": 6340.0,
-   "price_retail_min": 7925.0
+   "price_retail_min": 7925.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -355,7 +375,8 @@
    "price_drop1": 8025.0,
    "price_drop2": 8255.0,
    "price_drop3": 8560.0,
-   "price_retail_min": 10700.0
+   "price_retail_min": 10700.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -373,6 +394,7 @@
    "price_drop2": 9185.0,
    "price_drop3": 9525.0,
    "price_retail_min": 11906.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -390,7 +412,8 @@
    "price_drop1": 9861.0,
    "price_drop2": 10143.0,
    "price_drop3": 10519.0,
-   "price_retail_min": 13148.0
+   "price_retail_min": 13148.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -408,6 +431,7 @@
    "price_drop2": 11101.0,
    "price_drop3": 11513.0,
    "price_retail_min": 14391.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -425,7 +449,8 @@
    "price_drop1": 11880.0,
    "price_drop2": 12219.0,
    "price_drop3": 12672.0,
-   "price_retail_min": 15840.0
+   "price_retail_min": 15840.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -443,6 +468,7 @@
    "price_drop2": 13977.0,
    "price_drop3": 14494.0,
    "price_retail_min": 18118.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -460,7 +486,8 @@
    "price_drop1": 15530.0,
    "price_drop2": 15973.0,
    "price_drop3": 16565.0,
-   "price_retail_min": 20706.0
+   "price_retail_min": 20706.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -477,7 +504,8 @@
    "price_drop1": 19800.0,
    "price_drop2": 20366.0,
    "price_drop3": 21120.0,
-   "price_retail_min": 26400.0
+   "price_retail_min": 26400.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -494,7 +522,8 @@
    "price_drop1": 28341.0,
    "price_drop2": 29151.0,
    "price_drop3": 30231.0,
-   "price_retail_min": 37788.0
+   "price_retail_min": 37788.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime/Українська Преміум",
@@ -511,7 +540,8 @@
    "price_drop1": 37348.0,
    "price_drop2": 38416.0,
    "price_drop3": 39838.0,
-   "price_retail_min": 49798.0
+   "price_retail_min": 49798.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian slim / Українська струнка",
@@ -528,7 +558,8 @@
    "price_drop1": 3284.0,
    "price_drop2": 3378.0,
    "price_drop3": 3503.0,
-   "price_retail_min": 4691.0
+   "price_retail_min": 4691.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian slim / Українська струнка",
@@ -545,7 +576,8 @@
    "price_drop1": 4344.0,
    "price_drop2": 4468.0,
    "price_drop3": 4633.0,
-   "price_retail_min": 6206.0
+   "price_retail_min": 6206.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian slim / Українська струнка",
@@ -562,7 +594,8 @@
    "price_drop1": 5880.0,
    "price_drop2": 6048.0,
    "price_drop3": 6272.0,
-   "price_retail_min": 8400.0
+   "price_retail_min": 8400.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian slim / Українська струнка",
@@ -579,7 +612,8 @@
    "price_drop1": 7277.0,
    "price_drop2": 7484.0,
    "price_drop3": 7762.0,
-   "price_retail_min": 10742.0
+   "price_retail_min": 10742.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian slim / Українська струнка",
@@ -596,7 +630,8 @@
    "price_drop1": 9371.0,
    "price_drop2": 9639.0,
    "price_drop3": 9996.0,
-   "price_retail_min": 14280.0
+   "price_retail_min": 14280.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace / Грейс",
@@ -613,7 +648,8 @@
    "price_drop1": 3473.0,
    "price_drop2": 3572.0,
    "price_drop3": 3705.0,
-   "price_retail_min": 4631.0
+   "price_retail_min": 4631.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace / Грейс",
@@ -630,7 +666,8 @@
    "price_drop1": 4656.0,
    "price_drop2": 4789.0,
    "price_drop3": 4966.0,
-   "price_retail_min": 6208.0
+   "price_retail_min": 6208.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace / Грейс",
@@ -647,7 +684,8 @@
    "price_drop1": 6372.0,
    "price_drop2": 6555.0,
    "price_drop3": 6797.0,
-   "price_retail_min": 8497.0
+   "price_retail_min": 8497.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace / Грейс",
@@ -664,7 +702,8 @@
    "price_drop1": 7872.0,
    "price_drop2": 8097.0,
    "price_drop3": 8397.0,
-   "price_retail_min": 10496.0
+   "price_retail_min": 10496.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace / Грейс",
@@ -681,7 +720,8 @@
    "price_drop1": 9586.0,
    "price_drop2": 9860.0,
    "price_drop3": 10225.0,
-   "price_retail_min": 12782.0
+   "price_retail_min": 12782.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace / Грейс",
@@ -699,6 +739,7 @@
    "price_drop2": 12955.0,
    "price_drop3": 13435.0,
    "price_retail_min": 16793.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -717,6 +758,7 @@
    "price_drop2": 16852.0,
    "price_drop3": 17476.0,
    "price_retail_min": 21845.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -735,6 +777,7 @@
    "price_drop2": 23960.0,
    "price_drop3": 24847.0,
    "price_retail_min": 31059.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -753,6 +796,7 @@
    "price_drop2": 32800.0,
    "price_drop3": 34015.0,
    "price_retail_min": 42519.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -770,7 +814,8 @@
    "price_drop1": 4980.0,
    "price_drop2": 5122.0,
    "price_drop3": 5311.0,
-   "price_retail_min": 6639.0
+   "price_retail_min": 6639.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace Frost / Грейс засніжена",
@@ -787,7 +832,8 @@
    "price_drop1": 6680.0,
    "price_drop2": 6871.0,
    "price_drop3": 7125.0,
-   "price_retail_min": 8906.0
+   "price_retail_min": 8906.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace Frost / Грейс засніжена",
@@ -804,7 +850,8 @@
    "price_drop1": 8805.0,
    "price_drop2": 9057.0,
    "price_drop3": 9392.0,
-   "price_retail_min": 11740.0
+   "price_retail_min": 11740.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace Frost / Грейс засніжена",
@@ -821,7 +868,8 @@
    "price_drop1": 11052.0,
    "price_drop2": 11368.0,
    "price_drop3": 11789.0,
-   "price_retail_min": 14736.0
+   "price_retail_min": 14736.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace Frost / Грейс засніжена",
@@ -838,7 +886,8 @@
    "price_drop1": 14939.0,
    "price_drop2": 15365.0,
    "price_drop3": 15934.0,
-   "price_retail_min": 19918.0
+   "price_retail_min": 19918.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -855,7 +904,8 @@
    "price_drop1": 3547.0,
    "price_drop2": 3648.0,
    "price_drop3": 3784.0,
-   "price_retail_min": 4730.0
+   "price_retail_min": 4730.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -872,7 +922,8 @@
    "price_drop1": 5098.0,
    "price_drop2": 5244.0,
    "price_drop3": 5438.0,
-   "price_retail_min": 6797.0
+   "price_retail_min": 6797.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -889,7 +940,8 @@
    "price_drop1": 6822.0,
    "price_drop2": 7017.0,
    "price_drop3": 7277.0,
-   "price_retail_min": 9096.0
+   "price_retail_min": 9096.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -906,7 +958,8 @@
    "price_drop1": 8322.0,
    "price_drop2": 8559.0,
    "price_drop3": 8876.0,
-   "price_retail_min": 11096.0
+   "price_retail_min": 11096.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -923,7 +976,8 @@
    "price_drop1": 10715.0,
    "price_drop2": 11022.0,
    "price_drop3": 11430.0,
-   "price_retail_min": 14287.0
+   "price_retail_min": 14287.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -940,7 +994,8 @@
    "price_drop1": 14132.0,
    "price_drop2": 14536.0,
    "price_drop3": 15074.0,
-   "price_retail_min": 18842.0
+   "price_retail_min": 18842.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -957,7 +1012,8 @@
    "price_drop1": 18270.0,
    "price_drop2": 18792.0,
    "price_drop3": 19488.0,
-   "price_retail_min": 24360.0
+   "price_retail_min": 24360.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -974,7 +1030,8 @@
    "price_drop1": 27733.0,
    "price_drop2": 28525.0,
    "price_drop3": 29581.0,
-   "price_retail_min": 36977.0
+   "price_retail_min": 36977.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal / Рояль",
@@ -991,7 +1048,8 @@
    "price_drop1": 36727.0,
    "price_drop2": 37776.0,
    "price_drop3": 39175.0,
-   "price_retail_min": 48969.0
+   "price_retail_min": 48969.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1008,7 +1066,8 @@
    "price_drop1": 4908.0,
    "price_drop2": 5049.0,
    "price_drop3": 5236.0,
-   "price_retail_min": 6544.0
+   "price_retail_min": 6544.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1025,7 +1084,8 @@
    "price_drop1": 6680.0,
    "price_drop2": 6871.0,
    "price_drop3": 7125.0,
-   "price_retail_min": 8906.0
+   "price_retail_min": 8906.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1042,7 +1102,8 @@
    "price_drop1": 8805.0,
    "price_drop2": 9057.0,
    "price_drop3": 9392.0,
-   "price_retail_min": 11740.0
+   "price_retail_min": 11740.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1059,7 +1120,8 @@
    "price_drop1": 11052.0,
    "price_drop2": 11368.0,
    "price_drop3": 11789.0,
-   "price_retail_min": 14736.0
+   "price_retail_min": 14736.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1076,7 +1138,8 @@
    "price_drop1": 14353.0,
    "price_drop2": 14763.0,
    "price_drop3": 15309.0,
-   "price_retail_min": 19137.0
+   "price_retail_min": 19137.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1093,7 +1156,8 @@
    "price_drop1": 18491.0,
    "price_drop2": 19019.0,
    "price_drop3": 19724.0,
-   "price_retail_min": 24655.0
+   "price_retail_min": 24655.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1110,7 +1174,8 @@
    "price_drop1": 23683.0,
    "price_drop2": 24360.0,
    "price_drop3": 25262.0,
-   "price_retail_min": 31577.0
+   "price_retail_min": 31577.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1127,7 +1192,8 @@
    "price_drop1": 35950.0,
    "price_drop2": 36977.0,
    "price_drop3": 38346.0,
-   "price_retail_min": 47933.0
+   "price_retail_min": 47933.0,
+   "stock_sheet": null
   },
   {
    "model": "Royal Prime/ Рояль Преміум",
@@ -1144,7 +1210,8 @@
    "price_drop1": 47609.0,
    "price_drop2": 48969.0,
    "price_drop3": 50783.0,
-   "price_retail_min": 63479.0
+   "price_retail_min": 63479.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia / Грандія",
@@ -1161,7 +1228,8 @@
    "price_drop1": 5173.0,
    "price_drop2": 5321.0,
    "price_drop3": 5518.0,
-   "price_retail_min": 6898.0
+   "price_retail_min": 6898.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia / Грандія",
@@ -1178,7 +1246,8 @@
    "price_drop1": 7710.0,
    "price_drop2": 7930.0,
    "price_drop3": 8224.0,
-   "price_retail_min": 10280.0
+   "price_retail_min": 10280.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia / Грандія",
@@ -1195,7 +1264,8 @@
    "price_drop1": 10270.0,
    "price_drop2": 10563.0,
    "price_drop3": 10955.0,
-   "price_retail_min": 14672.0
+   "price_retail_min": 14672.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia / Грандія",
@@ -1212,7 +1282,8 @@
    "price_drop1": 13158.0,
    "price_drop2": 13533.0,
    "price_drop3": 14035.0,
-   "price_retail_min": 18797.0
+   "price_retail_min": 18797.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia / Грандія",
@@ -1229,7 +1300,8 @@
    "price_drop1": 15622.0,
    "price_drop2": 16068.0,
    "price_drop3": 16663.0,
-   "price_retail_min": 22317.0
+   "price_retail_min": 22317.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia / Грандія",
@@ -1246,7 +1318,8 @@
    "price_drop1": 19626.0,
    "price_drop2": 20186.0,
    "price_drop3": 20934.0,
-   "price_retail_min": 28037.0
+   "price_retail_min": 28037.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia / Грандія",
@@ -1264,6 +1337,7 @@
    "price_drop2": 23083.0,
    "price_drop3": null,
    "price_retail_min": 32085.37,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -1281,7 +1355,8 @@
    "price_drop1": 5173.0,
    "price_drop2": 5321.0,
    "price_drop3": 5518.0,
-   "price_retail_min": 6897.0
+   "price_retail_min": 6897.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia Premium/ Грандія Преміум",
@@ -1298,7 +1373,8 @@
    "price_drop1": 8221.0,
    "price_drop2": 8456.0,
    "price_drop3": 8769.0,
-   "price_retail_min": 10962.0
+   "price_retail_min": 10962.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia Premium/ Грандія Преміум",
@@ -1315,7 +1391,8 @@
    "price_drop1": 11620.0,
    "price_drop2": 11952.0,
    "price_drop3": 12395.0,
-   "price_retail_min": 16601.0
+   "price_retail_min": 16601.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia Premium/ Грандія Преміум",
@@ -1332,7 +1409,8 @@
    "price_drop1": 15272.0,
    "price_drop2": 15709.0,
    "price_drop3": 16291.0,
-   "price_retail_min": 21818.0
+   "price_retail_min": 21818.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia Premium/ Грандія Преміум",
@@ -1349,7 +1427,8 @@
    "price_drop1": 18850.0,
    "price_drop2": 19388.0,
    "price_drop3": 20106.0,
-   "price_retail_min": 26928.0
+   "price_retail_min": 26928.0,
+   "stock_sheet": null
   },
   {
    "model": "Grandia Premium/ Грандія Преміум",
@@ -1366,7 +1445,8 @@
    "price_drop1": 22448.0,
    "price_drop2": 23090.0,
    "price_drop3": 23945.0,
-   "price_retail_min": 32069.0
+   "price_retail_min": 32069.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordia / Нордія",
@@ -1383,7 +1463,8 @@
    "price_drop1": 5101.0,
    "price_drop2": 5247.0,
    "price_drop3": 5441.0,
-   "price_retail_min": 7287.0
+   "price_retail_min": 7287.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordia / Нордія",
@@ -1400,7 +1481,8 @@
    "price_drop1": 7014.0,
    "price_drop2": 7214.0,
    "price_drop3": 7481.0,
-   "price_retail_min": 10020.0
+   "price_retail_min": 10020.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordia / Нордія",
@@ -1417,7 +1499,8 @@
    "price_drop1": 10661.0,
    "price_drop2": 10965.0,
    "price_drop3": 11371.0,
-   "price_retail_min": 15230.0
+   "price_retail_min": 15230.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordia / Нордія",
@@ -1434,7 +1517,8 @@
    "price_drop1": 13109.0,
    "price_drop2": 13484.0,
    "price_drop3": 13983.0,
-   "price_retail_min": 18727.0
+   "price_retail_min": 18727.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordia / Нордія",
@@ -1451,7 +1535,8 @@
    "price_drop1": 16011.0,
    "price_drop2": 16469.0,
    "price_drop3": 17079.0,
-   "price_retail_min": 22874.0
+   "price_retail_min": 22874.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordia / Нордія",
@@ -1468,7 +1553,8 @@
    "price_drop1": 18970.0,
    "price_drop2": 19512.0,
    "price_drop3": 20235.0,
-   "price_retail_min": 27100.0
+   "price_retail_min": 27100.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace slim / Грейс струнка",
@@ -1485,7 +1571,8 @@
    "price_drop1": 2976.0,
    "price_drop2": 3061.0,
    "price_drop3": 3174.0,
-   "price_retail_min": 3967.0
+   "price_retail_min": 3967.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace slim / Грейс струнка",
@@ -1502,7 +1589,8 @@
    "price_drop1": 4081.0,
    "price_drop2": 4197.0,
    "price_drop3": 4353.0,
-   "price_retail_min": 5441.0
+   "price_retail_min": 5441.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace slim / Грейс струнка",
@@ -1519,7 +1607,8 @@
    "price_drop1": 5344.0,
    "price_drop2": 5497.0,
    "price_drop3": 5700.0,
-   "price_retail_min": 7380.0
+   "price_retail_min": 7380.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace slim / Грейс струнка",
@@ -1536,7 +1625,8 @@
    "price_drop1": 6801.0,
    "price_drop2": 6996.0,
    "price_drop3": 7255.0,
-   "price_retail_min": 9392.0
+   "price_retail_min": 9392.0,
+   "stock_sheet": null
   },
   {
    "model": "Grace slim / Грейс струнка",
@@ -1553,7 +1643,8 @@
    "price_drop1": 8679.0,
    "price_drop2": 8927.0,
    "price_drop3": 9258.0,
-   "price_retail_min": 12399.0
+   "price_retail_min": 12399.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic slim/Класична струнка",
@@ -1570,7 +1661,8 @@
    "price_drop1": 2976.0,
    "price_drop2": 3061.0,
    "price_drop3": 3174.0,
-   "price_retail_min": 3967.0
+   "price_retail_min": 3967.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic slim/Класична струнка",
@@ -1587,7 +1679,8 @@
    "price_drop1": 4081.0,
    "price_drop2": 4197.0,
    "price_drop3": 4353.0,
-   "price_retail_min": 5441.0
+   "price_retail_min": 5441.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic slim/Класична струнка",
@@ -1604,7 +1697,8 @@
    "price_drop1": 5344.0,
    "price_drop2": 5497.0,
    "price_drop3": 5700.0,
-   "price_retail_min": 7125.0
+   "price_retail_min": 7125.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic slim/Класична струнка",
@@ -1621,7 +1715,8 @@
    "price_drop1": 6801.0,
    "price_drop2": 6996.0,
    "price_drop3": 7255.0,
-   "price_retail_min": 9068.0
+   "price_retail_min": 9068.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic slim/Класична струнка",
@@ -1638,7 +1733,8 @@
    "price_drop1": 8979.0,
    "price_drop2": 9235.0,
    "price_drop3": 9577.0,
-   "price_retail_min": 12399.0
+   "price_retail_min": 12399.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс мікс / Edelweiss Luxe mix",
@@ -1655,7 +1751,8 @@
    "price_drop1": 4372.0,
    "price_drop2": 4497.0,
    "price_drop3": 4664.0,
-   "price_retail_min": 5830.0
+   "price_retail_min": 5830.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс мікс / Edelweiss Luxe mix",
@@ -1672,7 +1769,8 @@
    "price_drop1": 6185.0,
    "price_drop2": 6362.0,
    "price_drop3": 6597.0,
-   "price_retail_min": 8247.0
+   "price_retail_min": 8247.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс мікс / Edelweiss Luxe mix",
@@ -1689,7 +1787,8 @@
    "price_drop1": 7882.0,
    "price_drop2": 8107.0,
    "price_drop3": 8408.0,
-   "price_retail_min": 10510.0
+   "price_retail_min": 10510.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс мікс / Edelweiss Luxe mix",
@@ -1706,7 +1805,8 @@
    "price_drop1": 10153.0,
    "price_drop2": 10443.0,
    "price_drop3": 10830.0,
-   "price_retail_min": 13538.0
+   "price_retail_min": 13538.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс мікс / Edelweiss Luxe mix",
@@ -1723,7 +1823,8 @@
    "price_drop1": 2838.0,
    "price_drop2": 2919.0,
    "price_drop3": 3027.0,
-   "price_retail_min": 3784.0
+   "price_retail_min": 3784.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс/ Edelweiss",
@@ -1740,7 +1841,8 @@
    "price_drop1": 4615.0,
    "price_drop2": 4747.0,
    "price_drop3": 4923.0,
-   "price_retail_min": 6154.0
+   "price_retail_min": 6154.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс/ Edelweiss",
@@ -1757,7 +1859,8 @@
    "price_drop1": 6376.0,
    "price_drop2": 6558.0,
    "price_drop3": 6801.0,
-   "price_retail_min": 8502.0
+   "price_retail_min": 8502.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс/ Edelweiss",
@@ -1774,7 +1877,8 @@
    "price_drop1": 8198.0,
    "price_drop2": 8432.0,
    "price_drop3": 8745.0,
-   "price_retail_min": 10931.0
+   "price_retail_min": 10931.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс/ Edelweiss",
@@ -1791,7 +1895,8 @@
    "price_drop1": 10020.0,
    "price_drop2": 10306.0,
    "price_drop3": 10688.0,
-   "price_retail_min": 13360.0
+   "price_retail_min": 13360.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс мікс/ Edelweiss Mix",
@@ -1808,7 +1913,8 @@
    "price_drop1": 4372.0,
    "price_drop2": 4497.0,
    "price_drop3": 4664.0,
-   "price_retail_min": 5830.0
+   "price_retail_min": 5830.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс мікс/ Edelweiss Mix",
@@ -1825,7 +1931,8 @@
    "price_drop1": 5890.0,
    "price_drop2": 6059.0,
    "price_drop3": 6283.0,
-   "price_retail_min": 7854.0
+   "price_retail_min": 7854.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс мікс/ Edelweiss Mix",
@@ -1842,7 +1949,8 @@
    "price_drop1": 7166.0,
    "price_drop2": 7370.0,
    "price_drop3": 7643.0,
-   "price_retail_min": 9554.0
+   "price_retail_min": 9554.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс мікс/ Edelweiss Mix",
@@ -1859,7 +1967,8 @@
    "price_drop1": 9291.0,
    "price_drop2": 9556.0,
    "price_drop3": 9910.0,
-   "price_retail_min": 12388.0
+   "price_retail_min": 12388.0,
+   "stock_sheet": null
   },
   {
    "model": "Natural/ Натуральна",
@@ -1877,6 +1986,7 @@
    "price_drop2": 1157.0,
    "price_drop3": 1200.0,
    "price_retail_min": 1499.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -1895,6 +2005,7 @@
    "price_drop2": 2622.0,
    "price_drop3": 2719.0,
    "price_retail_min": 3399.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -1912,7 +2023,8 @@
    "price_drop1": 4069.0,
    "price_drop2": 4185.0,
    "price_drop3": 4340.0,
-   "price_retail_min": 5425.0
+   "price_retail_min": 5425.0,
+   "stock_sheet": null
   },
   {
    "model": "Natural/ Натуральна",
@@ -1929,7 +2041,8 @@
    "price_drop1": 5769.0,
    "price_drop2": 5934.0,
    "price_drop3": 6154.0,
-   "price_retail_min": 7692.0
+   "price_retail_min": 7692.0,
+   "stock_sheet": null
   },
   {
    "model": "Natural/ Натуральна",
@@ -1946,7 +2059,8 @@
    "price_drop1": 7955.0,
    "price_drop2": 8182.0,
    "price_drop3": 8485.0,
-   "price_retail_min": 10607.0
+   "price_retail_min": 10607.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс/ Edelweiss Luxe",
@@ -1963,7 +2077,8 @@
    "price_drop1": 4931.0,
    "price_drop2": 5072.0,
    "price_drop3": 5260.0,
-   "price_retail_min": 6575.0
+   "price_retail_min": 6575.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс/ Edelweiss Luxe",
@@ -1980,7 +2095,8 @@
    "price_drop1": 8659.0,
    "price_drop2": 8907.0,
    "price_drop3": 9237.0,
-   "price_retail_min": 12371.0
+   "price_retail_min": 12371.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс/ Edelweiss Luxe",
@@ -1997,7 +2113,8 @@
    "price_drop1": 12424.0,
    "price_drop2": 12779.0,
    "price_drop3": 13252.0,
-   "price_retail_min": 17748.0
+   "price_retail_min": 17748.0,
+   "stock_sheet": null
   },
   {
    "model": "Едельвейс Люкс/ Edelweiss Luxe",
@@ -2014,7 +2131,8 @@
    "price_drop1": 14394.0,
    "price_drop2": 14806.0,
    "price_drop3": 15354.0,
-   "price_retail_min": 20563.0
+   "price_retail_min": 20563.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic / Смарт Класік",
@@ -2031,7 +2149,8 @@
    "price_drop1": 2297.0,
    "price_drop2": 2363.0,
    "price_drop3": 2450.0,
-   "price_retail_min": 3063.0
+   "price_retail_min": 3063.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic / Смарт Класік",
@@ -2048,7 +2167,8 @@
    "price_drop1": 3355.0,
    "price_drop2": 3451.0,
    "price_drop3": 3579.0,
-   "price_retail_min": 4474.0
+   "price_retail_min": 4474.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic / Смарт Класік",
@@ -2065,7 +2185,8 @@
    "price_drop1": 4386.0,
    "price_drop2": 4511.0,
    "price_drop3": 4678.0,
-   "price_retail_min": 5848.0
+   "price_retail_min": 5848.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic / Смарт Класік",
@@ -2082,7 +2203,8 @@
    "price_drop1": 5360.0,
    "price_drop2": 5514.0,
    "price_drop3": 5718.0,
-   "price_retail_min": 7147.0
+   "price_retail_min": 7147.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic / Смарт Класік",
@@ -2100,6 +2222,7 @@
    "price_drop2": 6910.0,
    "price_drop3": 7166.0,
    "price_retail_min": 8957.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -2117,7 +2240,8 @@
    "price_drop1": 2297.0,
    "price_drop2": 2363.0,
    "price_drop3": 2450.0,
-   "price_retail_min": 3063.0
+   "price_retail_min": 3063.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic Ukrainian/ Смарт класік Українська",
@@ -2134,7 +2258,8 @@
    "price_drop1": 3355.0,
    "price_drop2": 3451.0,
    "price_drop3": 3579.0,
-   "price_retail_min": 4474.0
+   "price_retail_min": 4474.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic Ukrainian/ Смарт класік Українська",
@@ -2151,7 +2276,8 @@
    "price_drop1": 4386.0,
    "price_drop2": 4511.0,
    "price_drop3": 4678.0,
-   "price_retail_min": 5848.0
+   "price_retail_min": 5848.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic Ukrainian/ Смарт класік Українська",
@@ -2168,7 +2294,8 @@
    "price_drop1": 5360.0,
    "price_drop2": 5514.0,
    "price_drop3": 5718.0,
-   "price_retail_min": 7147.0
+   "price_retail_min": 7147.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic Ukrainian/ Смарт класік Українська",
@@ -2186,6 +2313,7 @@
    "price_drop2": 6910.0,
    "price_drop3": 7166.0,
    "price_retail_min": 8957.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -2203,7 +2331,8 @@
    "price_drop1": 2247.0,
    "price_drop2": 2311.0,
    "price_drop3": 2397.0,
-   "price_retail_min": 2996.0
+   "price_retail_min": 2996.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordgran mix/ Нордгран. mix",
@@ -2220,7 +2349,8 @@
    "price_drop1": 2915.0,
    "price_drop2": 2998.0,
    "price_drop3": 3109.0,
-   "price_retail_min": 3886.0
+   "price_retail_min": 3886.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordgran mix/ Нордгран. mix",
@@ -2237,7 +2367,8 @@
    "price_drop1": 3765.0,
    "price_drop2": 3873.0,
    "price_drop3": 4016.0,
-   "price_retail_min": 5020.0
+   "price_retail_min": 5020.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordgran mix/ Нордгран. mix",
@@ -2254,7 +2385,8 @@
    "price_drop1": 4797.0,
    "price_drop2": 4934.0,
    "price_drop3": 5117.0,
-   "price_retail_min": 6396.0
+   "price_retail_min": 6396.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordgran mix/ Нордгран. mix",
@@ -2271,7 +2403,8 @@
    "price_drop1": 6133.0,
    "price_drop2": 6309.0,
    "price_drop3": 6542.0,
-   "price_retail_min": 8178.0
+   "price_retail_min": 8178.0,
+   "stock_sheet": null
   },
   {
    "model": "Nordgran mix/ Нордгран. mix",
@@ -2289,6 +2422,7 @@
    "price_drop2": 8570.0,
    "price_drop3": 8887.0,
    "price_retail_min": 11109.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -2306,7 +2440,8 @@
    "price_drop1": 2247.0,
    "price_drop2": 2311.0,
    "price_drop3": 2397.0,
-   "price_retail_min": 2996.0
+   "price_retail_min": 2996.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic mix/ Класична mix",
@@ -2323,7 +2458,8 @@
    "price_drop1": 2915.0,
    "price_drop2": 2998.0,
    "price_drop3": 3109.0,
-   "price_retail_min": 3886.0
+   "price_retail_min": 3886.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic mix/ Класична mix",
@@ -2340,7 +2476,8 @@
    "price_drop1": 3765.0,
    "price_drop2": 3873.0,
    "price_drop3": 4016.0,
-   "price_retail_min": 5020.0
+   "price_retail_min": 5020.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic mix/ Класична mix",
@@ -2357,7 +2494,8 @@
    "price_drop1": 4797.0,
    "price_drop2": 4934.0,
    "price_drop3": 5117.0,
-   "price_retail_min": 6396.0
+   "price_retail_min": 6396.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic mix/ Класична mix",
@@ -2374,7 +2512,8 @@
    "price_drop1": 6133.0,
    "price_drop2": 6309.0,
    "price_drop3": 6542.0,
-   "price_retail_min": 8178.0
+   "price_retail_min": 8178.0,
+   "stock_sheet": null
   },
   {
    "model": "Classic mix/ Класична mix",
@@ -2392,6 +2531,7 @@
    "price_drop2": 8570.0,
    "price_drop3": 8887.0,
    "price_retail_min": 11109.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -2409,7 +2549,8 @@
    "price_drop1": 2699.0,
    "price_drop2": 2776.0,
    "price_drop3": 2879.0,
-   "price_retail_min": 3599.0
+   "price_retail_min": 3599.0,
+   "stock_sheet": null
   },
   {
    "model": "Nobilis super slim/ Нобіліс cупер струнка",
@@ -2426,7 +2567,8 @@
    "price_drop1": 3749.0,
    "price_drop2": 3856.0,
    "price_drop3": 3998.0,
-   "price_retail_min": 4998.0
+   "price_retail_min": 4998.0,
+   "stock_sheet": null
   },
   {
    "model": "Nobilis super slim/ Нобіліс cупер струнка",
@@ -2443,7 +2585,8 @@
    "price_drop1": 4873.0,
    "price_drop2": 5012.0,
    "price_drop3": 5198.0,
-   "price_retail_min": 6497.0
+   "price_retail_min": 6497.0,
+   "stock_sheet": null
   },
   {
    "model": "Nobilis super slim/ Нобіліс cупер струнка",
@@ -2460,7 +2603,8 @@
    "price_drop1": 5398.0,
    "price_drop2": 5552.0,
    "price_drop3": 5758.0,
-   "price_retail_min": 7197.0
+   "price_retail_min": 7197.0,
+   "stock_sheet": null
   },
   {
    "model": "Nobilis super slim/ Нобіліс cупер струнка",
@@ -2477,7 +2621,8 @@
    "price_drop1": 6672.0,
    "price_drop2": 6863.0,
    "price_drop3": 7117.0,
-   "price_retail_min": 8896.0
+   "price_retail_min": 8896.0,
+   "stock_sheet": null
   },
   {
    "model": "Nobilis super slim/ Нобіліс cупер струнка",
@@ -2494,7 +2639,8 @@
    "price_drop1": 7422.0,
    "price_drop2": 7634.0,
    "price_drop3": 7917.0,
-   "price_retail_min": 9896.0
+   "price_retail_min": 9896.0,
+   "stock_sheet": null
   },
   {
    "model": "Nobilis super slim/ Нобіліс cупер струнка",
@@ -2511,7 +2657,8 @@
    "price_drop1": 8097.0,
    "price_drop2": 8328.0,
    "price_drop3": 8637.0,
-   "price_retail_min": 10796.0
+   "price_retail_min": 10796.0,
+   "stock_sheet": null
   },
   {
    "model": "Astra super slim/ Астра cупер струнка",
@@ -2528,7 +2675,8 @@
    "price_drop1": 2976.0,
    "price_drop2": 3061.0,
    "price_drop3": 3174.0,
-   "price_retail_min": 3967.0
+   "price_retail_min": 3967.0,
+   "stock_sheet": null
   },
   {
    "model": "Astra super slim/ Астра cупер струнка",
@@ -2545,7 +2693,8 @@
    "price_drop1": 4081.0,
    "price_drop2": 4197.0,
    "price_drop3": 4353.0,
-   "price_retail_min": 5441.0
+   "price_retail_min": 5441.0,
+   "stock_sheet": null
   },
   {
    "model": "Astra super slim/ Астра cупер струнка",
@@ -2562,7 +2711,8 @@
    "price_drop1": 5344.0,
    "price_drop2": 5497.0,
    "price_drop3": 5700.0,
-   "price_retail_min": 7125.0
+   "price_retail_min": 7125.0,
+   "stock_sheet": null
   },
   {
    "model": "Astra super slim/ Астра cупер струнка",
@@ -2579,7 +2729,8 @@
    "price_drop1": 6036.0,
    "price_drop2": 6209.0,
    "price_drop3": 6439.0,
-   "price_retail_min": 8048.0
+   "price_retail_min": 8048.0,
+   "stock_sheet": null
   },
   {
    "model": "Astra super slim/ Астра cупер струнка",
@@ -2596,7 +2747,8 @@
    "price_drop1": 6801.0,
    "price_drop2": 6996.0,
    "price_drop3": 7255.0,
-   "price_retail_min": 9068.0
+   "price_retail_min": 9068.0,
+   "stock_sheet": null
   },
   {
    "model": "Astra super slim/ Астра cупер струнка",
@@ -2613,7 +2765,8 @@
    "price_drop1": 7837.0,
    "price_drop2": 8061.0,
    "price_drop3": 8359.0,
-   "price_retail_min": 10449.0
+   "price_retail_min": 10449.0,
+   "stock_sheet": null
   },
   {
    "model": "Astra super slim/ Астра cупер струнка",
@@ -2630,7 +2783,8 @@
    "price_drop1": 8679.0,
    "price_drop2": 8927.0,
    "price_drop3": 9258.0,
-   "price_retail_min": 11573.0
+   "price_retail_min": 11573.0,
+   "stock_sheet": null
   },
   {
    "model": "Silvia Premium / Сільвія Преміум",
@@ -2647,7 +2801,8 @@
    "price_drop1": 4251.0,
    "price_drop2": 4372.0,
    "price_drop3": 4534.0,
-   "price_retail_min": 5668.0
+   "price_retail_min": 5668.0,
+   "stock_sheet": null
   },
   {
    "model": "Silvia Premium / Сільвія Преміум",
@@ -2664,7 +2819,8 @@
    "price_drop1": 5781.0,
    "price_drop2": 5946.0,
    "price_drop3": 6166.0,
-   "price_retail_min": 7708.0
+   "price_retail_min": 7708.0,
+   "stock_sheet": null
   },
   {
    "model": "Silvia Premium / Сільвія Преміум",
@@ -2681,7 +2837,8 @@
    "price_drop1": 8077.0,
    "price_drop2": 8307.0,
    "price_drop3": 8615.0,
-   "price_retail_min": 10769.0
+   "price_retail_min": 10769.0,
+   "stock_sheet": null
   },
   {
    "model": "Silvia Premium / Сільвія Преміум",
@@ -2698,7 +2855,8 @@
    "price_drop1": 11295.0,
    "price_drop2": 11618.0,
    "price_drop3": 12048.0,
-   "price_retail_min": 15060.0
+   "price_retail_min": 15060.0,
+   "stock_sheet": null
   },
   {
    "model": "Silvia Premium / Сільвія Преміум",
@@ -2715,7 +2873,8 @@
    "price_drop1": 13845.0,
    "price_drop2": 14241.0,
    "price_drop3": 14768.0,
-   "price_retail_min": 18461.0
+   "price_retail_min": 18461.0,
+   "stock_sheet": null
   },
   {
    "model": "Silvia Premium / Сільвія Преміум",
@@ -2732,7 +2891,8 @@
    "price_drop1": 21861.0,
    "price_drop2": 22486.0,
    "price_drop3": 23319.0,
-   "price_retail_min": 29148.0
+   "price_retail_min": 29148.0,
+   "stock_sheet": null
   },
   {
    "model": "Silvia Premium / Сільвія Преміум",
@@ -2749,7 +2909,8 @@
    "price_drop1": 31286.0,
    "price_drop2": 32180.0,
    "price_drop3": 33372.0,
-   "price_retail_min": 41715.0
+   "price_retail_min": 41715.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2766,7 +2927,8 @@
    "price_drop1": 4081.0,
    "price_drop2": 4197.0,
    "price_drop3": 4353.0,
-   "price_retail_min": 5441.0
+   "price_retail_min": 5441.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2783,7 +2945,8 @@
    "price_drop1": 5484.0,
    "price_drop2": 5640.0,
    "price_drop3": 5849.0,
-   "price_retail_min": 7311.0
+   "price_retail_min": 7311.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2800,7 +2963,8 @@
    "price_drop1": 7396.0,
    "price_drop2": 7608.0,
    "price_drop3": 7889.0,
-   "price_retail_min": 9862.0
+   "price_retail_min": 9862.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2817,7 +2981,8 @@
    "price_drop1": 9118.0,
    "price_drop2": 9378.0,
    "price_drop3": 9726.0,
-   "price_retail_min": 12157.0
+   "price_retail_min": 12157.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2834,7 +2999,8 @@
    "price_drop1": 12024.0,
    "price_drop2": 12367.0,
    "price_drop3": 12825.0,
-   "price_retail_min": 16032.0
+   "price_retail_min": 16032.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2851,7 +3017,8 @@
    "price_drop1": 15713.0,
    "price_drop2": 16162.0,
    "price_drop3": 16760.0,
-   "price_retail_min": 20950.0
+   "price_retail_min": 20950.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2868,7 +3035,8 @@
    "price_drop1": 20841.0,
    "price_drop2": 21437.0,
    "price_drop3": 22230.0,
-   "price_retail_min": 27788.0
+   "price_retail_min": 27788.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2885,7 +3053,8 @@
    "price_drop1": 29877.0,
    "price_drop2": 30731.0,
    "price_drop3": 31869.0,
-   "price_retail_min": 39836.0
+   "price_retail_min": 39836.0,
+   "stock_sheet": null
   },
   {
    "model": "Lady White /Леді Вайт",
@@ -2902,7 +3071,8 @@
    "price_drop1": 39350.0,
    "price_drop2": 40475.0,
    "price_drop3": 41974.0,
-   "price_retail_min": 52467.0
+   "price_retail_min": 52467.0,
+   "stock_sheet": null
   },
   {
    "model": "Lamelia mix/Ламелія mix",
@@ -2919,7 +3089,8 @@
    "price_drop1": 3641.0,
    "price_drop2": 3745.0,
    "price_drop3": 3884.0,
-   "price_retail_min": 4855.0
+   "price_retail_min": 4855.0,
+   "stock_sheet": null
   },
   {
    "model": "Lamelia mix/Ламелія mix",
@@ -2936,7 +3107,8 @@
    "price_drop1": 5111.0,
    "price_drop2": 5257.0,
    "price_drop3": 5452.0,
-   "price_retail_min": 6815.0
+   "price_retail_min": 6815.0,
+   "stock_sheet": null
   },
   {
    "model": "Lamelia mix/Ламелія mix",
@@ -2953,7 +3125,8 @@
    "price_drop1": 7328.0,
    "price_drop2": 7538.0,
    "price_drop3": 7817.0,
-   "price_retail_min": 9771.0
+   "price_retail_min": 9771.0,
+   "stock_sheet": null
   },
   {
    "model": "Lamelia mix/Ламелія mix",
@@ -2970,7 +3143,8 @@
    "price_drop1": 11639.0,
    "price_drop2": 11972.0,
    "price_drop3": 12415.0,
-   "price_retail_min": 15519.0
+   "price_retail_min": 15519.0,
+   "stock_sheet": null
   },
   {
    "model": "Lamelia mix/Ламелія mix",
@@ -2988,6 +3162,7 @@
    "price_drop2": 15789.0,
    "price_drop3": 16373.0,
    "price_retail_min": 20467.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3005,7 +3180,8 @@
    "price_drop1": 6291.0,
    "price_drop2": 6471.0,
    "price_drop3": 6710.0,
-   "price_retail_min": 8388.0
+   "price_retail_min": 8388.0,
+   "stock_sheet": null
   },
   {
    "model": "Lamelia /Ламелія",
@@ -3022,7 +3198,8 @@
    "price_drop1": 8132.0,
    "price_drop2": 8364.0,
    "price_drop3": 8674.0,
-   "price_retail_min": 10842.0
+   "price_retail_min": 10842.0,
+   "stock_sheet": null
   },
   {
    "model": "Lamelia /Ламелія",
@@ -3039,7 +3216,8 @@
    "price_drop1": 14528.0,
    "price_drop2": 14943.0,
    "price_drop3": 15497.0,
-   "price_retail_min": 19371.0
+   "price_retail_min": 19371.0,
+   "stock_sheet": null
   },
   {
    "model": "Lamelia /Ламелія",
@@ -3056,7 +3234,8 @@
    "price_drop1": 17322.0,
    "price_drop2": 17817.0,
    "price_drop3": 18477.0,
-   "price_retail_min": 23097.0
+   "price_retail_min": 23097.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine mix/ Рів’єра Альпійська mix",
@@ -3073,7 +3252,8 @@
    "price_drop1": 4496.0,
    "price_drop2": 4624.0,
    "price_drop3": 4795.0,
-   "price_retail_min": 5994.0
+   "price_retail_min": 5994.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine mix/ Рів’єра Альпійська mix",
@@ -3090,7 +3270,8 @@
    "price_drop1": 6455.0,
    "price_drop2": 6639.0,
    "price_drop3": 6885.0,
-   "price_retail_min": 8607.0
+   "price_retail_min": 8607.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine mix/ Рів’єра Альпійська mix",
@@ -3107,7 +3288,8 @@
    "price_drop1": 10354.0,
    "price_drop2": 10650.0,
    "price_drop3": 11045.0,
-   "price_retail_min": 13806.0
+   "price_retail_min": 13806.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine mix/ Рів’єра Альпійська mix",
@@ -3124,7 +3306,8 @@
    "price_drop1": 12398.0,
    "price_drop2": 12752.0,
    "price_drop3": 13225.0,
-   "price_retail_min": 16531.0
+   "price_retail_min": 16531.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine mix/ Рів’єра Альпійська mix",
@@ -3141,7 +3324,8 @@
    "price_drop1": 14928.0,
    "price_drop2": 15355.0,
    "price_drop3": 15924.0,
-   "price_retail_min": 19905.0
+   "price_retail_min": 19905.0,
+   "stock_sheet": null
   },
   {
    "model": "Carpathian Premium/Карпатська Преміум",
@@ -3158,7 +3342,8 @@
    "price_drop1": 6057.0,
    "price_drop2": 6230.0,
    "price_drop3": 6460.0,
-   "price_retail_min": 8075.0
+   "price_retail_min": 8075.0,
+   "stock_sheet": null
   },
   {
    "model": "Carpathian Premium/Карпатська Преміум",
@@ -3176,6 +3361,7 @@
    "price_drop2": 9893.0,
    "price_drop3": 10259.0,
    "price_retail_min": 12824.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3193,7 +3379,8 @@
    "price_drop1": 12641.0,
    "price_drop2": 13002.0,
    "price_drop3": 13484.0,
-   "price_retail_min": 16855.0
+   "price_retail_min": 16855.0,
+   "stock_sheet": null
   },
   {
    "model": "Carpathian Premium/Карпатська Преміум",
@@ -3210,7 +3397,8 @@
    "price_drop1": 16018.0,
    "price_drop2": 16475.0,
    "price_drop3": 17086.0,
-   "price_retail_min": 21357.0
+   "price_retail_min": 21357.0,
+   "stock_sheet": null
   },
   {
    "model": "Весняна Преміум/ Spring Premium",
@@ -3227,7 +3415,8 @@
    "price_drop1": 4068.0,
    "price_drop2": 4184.0,
    "price_drop3": 4339.0,
-   "price_retail_min": 5424.0
+   "price_retail_min": 5424.0,
+   "stock_sheet": null
   },
   {
    "model": "Весняна Преміум/ Spring Premium",
@@ -3244,7 +3433,8 @@
    "price_drop1": 6627.0,
    "price_drop2": 6817.0,
    "price_drop3": 7069.0,
-   "price_retail_min": 8837.0
+   "price_retail_min": 8837.0,
+   "stock_sheet": null
   },
   {
    "model": "Весняна Преміум/ Spring Premium",
@@ -3261,7 +3451,8 @@
    "price_drop1": 8957.0,
    "price_drop2": 9213.0,
    "price_drop3": 9555.0,
-   "price_retail_min": 11943.0
+   "price_retail_min": 11943.0,
+   "stock_sheet": null
   },
   {
    "model": "Весняна Преміум/ Spring Premium",
@@ -3278,7 +3469,8 @@
    "price_drop1": 11594.0,
    "price_drop2": 11925.0,
    "price_drop3": 12367.0,
-   "price_retail_min": 15458.0
+   "price_retail_min": 15458.0,
+   "stock_sheet": null
   },
   {
    "model": "Весняна Преміум/ Spring Premium",
@@ -3295,7 +3487,8 @@
    "price_drop1": 14144.0,
    "price_drop2": 14548.0,
    "price_drop3": 15087.0,
-   "price_retail_min": 18858.0
+   "price_retail_min": 18858.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine / Рів’єра Альпійська",
@@ -3312,7 +3505,8 @@
    "price_drop1": 5974.0,
    "price_drop2": 6144.0,
    "price_drop3": 6372.0,
-   "price_retail_min": 7965.0
+   "price_retail_min": 7965.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine / Рів’єра Альпійська",
@@ -3329,7 +3523,8 @@
    "price_drop1": 7380.0,
    "price_drop2": 7591.0,
    "price_drop3": 7872.0,
-   "price_retail_min": 9840.0
+   "price_retail_min": 9840.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine / Рів’єра Альпійська",
@@ -3346,7 +3541,8 @@
    "price_drop1": 16357.0,
    "price_drop2": 16825.0,
    "price_drop3": 17448.0,
-   "price_retail_min": 21498.0
+   "price_retail_min": 21498.0,
+   "stock_sheet": null
   },
   {
    "model": "Riviera Alpine / Рів’єра Альпійська",
@@ -3363,7 +3559,8 @@
    "price_drop1": 21456.0,
    "price_drop2": 22069.0,
    "price_drop3": 22887.0,
-   "price_retail_min": 28200.0
+   "price_retail_min": 28200.0,
+   "stock_sheet": null
   },
   {
    "model": "Bellissima / Беллісіма",
@@ -3380,7 +3577,8 @@
    "price_drop1": 5783.0,
    "price_drop2": 5949.0,
    "price_drop3": 6169.0,
-   "price_retail_min": 7711.0
+   "price_retail_min": 7711.0,
+   "stock_sheet": null
   },
   {
    "model": "Bellissima / Беллісіма",
@@ -3397,7 +3595,8 @@
    "price_drop1": 8996.0,
    "price_drop2": 9253.0,
    "price_drop3": 9596.0,
-   "price_retail_min": 11995.0
+   "price_retail_min": 11995.0,
+   "stock_sheet": null
   },
   {
    "model": "Bellissima / Беллісіма",
@@ -3414,7 +3613,8 @@
    "price_drop1": 15262.0,
    "price_drop2": 15698.0,
    "price_drop3": 16279.0,
-   "price_retail_min": 20349.0
+   "price_retail_min": 20349.0,
+   "stock_sheet": null
   },
   {
    "model": "Bellissima / Беллісіма",
@@ -3431,7 +3631,8 @@
    "price_drop1": 19117.0,
    "price_drop2": 19664.0,
    "price_drop3": 20392.0,
-   "price_retail_min": 25490.0
+   "price_retail_min": 25490.0,
+   "stock_sheet": null
   },
   {
    "model": "Bellissima / Беллісіма",
@@ -3449,6 +3650,7 @@
    "price_drop2": 22473.0,
    "price_drop3": 23305.0,
    "price_retail_min": 29131.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3466,7 +3668,8 @@
    "price_drop1": 3856.0,
    "price_drop2": 3966.0,
    "price_drop3": 4113.0,
-   "price_retail_min": 5141.0
+   "price_retail_min": 5141.0,
+   "stock_sheet": null
   },
   {
    "model": "Montana / Монтана",
@@ -3483,7 +3686,8 @@
    "price_drop1": 5462.0,
    "price_drop2": 5618.0,
    "price_drop3": 5826.0,
-   "price_retail_min": 7283.0
+   "price_retail_min": 7283.0,
+   "stock_sheet": null
   },
   {
    "model": "Montana / Монтана",
@@ -3500,7 +3704,8 @@
    "price_drop1": 7390.0,
    "price_drop2": 7601.0,
    "price_drop3": 7883.0,
-   "price_retail_min": 9853.0
+   "price_retail_min": 9853.0,
+   "stock_sheet": null
   },
   {
    "model": "Montana / Монтана",
@@ -3517,7 +3722,8 @@
    "price_drop1": 8996.0,
    "price_drop2": 9253.0,
    "price_drop3": 9596.0,
-   "price_retail_min": 11995.0
+   "price_retail_min": 11995.0,
+   "stock_sheet": null
   },
   {
    "model": "Montana / Монтана",
@@ -3534,7 +3740,8 @@
    "price_drop1": 11246.0,
    "price_drop2": 11567.0,
    "price_drop3": 11995.0,
-   "price_retail_min": 14994.0
+   "price_retail_min": 14994.0,
+   "stock_sheet": null
   },
   {
    "model": "Montana / Монтана",
@@ -3552,6 +3759,7 @@
    "price_drop2": 15202.0,
    "price_drop3": 15765.0,
    "price_retail_min": 19706.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3570,6 +3778,7 @@
    "price_drop2": 18672.0,
    "price_drop3": 19364.0,
    "price_retail_min": 24205.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3587,7 +3796,8 @@
    "price_drop1": 2297.0,
    "price_drop2": 2363.0,
    "price_drop3": 2450.0,
-   "price_retail_min": 2954.0
+   "price_retail_min": 2954.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic Montana/ Смарт класік Монтана",
@@ -3604,7 +3814,8 @@
    "price_drop1": 3355.0,
    "price_drop2": 3451.0,
    "price_drop3": 3579.0,
-   "price_retail_min": 4314.0
+   "price_retail_min": 4314.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic Montana/ Смарт класік Монтана",
@@ -3621,7 +3832,8 @@
    "price_drop1": 4386.0,
    "price_drop2": 4511.0,
    "price_drop3": 4678.0,
-   "price_retail_min": 5639.0
+   "price_retail_min": 5639.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic Montana/ Смарт класік Монтана",
@@ -3638,7 +3850,8 @@
    "price_drop1": 5360.0,
    "price_drop2": 5514.0,
    "price_drop3": 5718.0,
-   "price_retail_min": 6637.0
+   "price_retail_min": 6637.0,
+   "stock_sheet": null
   },
   {
    "model": "Smart Classic Montana/ Смарт класік Монтана",
@@ -3656,6 +3869,7 @@
    "price_drop2": 6910.0,
    "price_drop3": 7166.0,
    "price_retail_min": 8317.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3674,6 +3888,7 @@
    "price_drop2": 3834.0,
    "price_drop3": 3976.0,
    "price_retail_min": 4969.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3692,6 +3907,7 @@
    "price_drop2": 5591.0,
    "price_drop3": 5798.0,
    "price_retail_min": 7247.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3710,6 +3926,7 @@
    "price_drop2": 7348.0,
    "price_drop3": 7620.0,
    "price_retail_min": 9525.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3728,6 +3945,7 @@
    "price_drop2": 8945.0,
    "price_drop3": 9276.0,
    "price_retail_min": 11595.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3746,6 +3964,7 @@
    "price_drop2": 11181.0,
    "price_drop3": 11595.0,
    "price_retail_min": 14494.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3764,6 +3983,7 @@
    "price_drop2": 14376.0,
    "price_drop3": 14908.0,
    "price_retail_min": 18635.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3782,6 +4002,7 @@
    "price_drop2": 17890.0,
    "price_drop3": 18553.0,
    "price_retail_min": 23191.0,
+   "stock_sheet": null,
    "weight_estimated": true
   },
   {
@@ -3799,7 +4020,8 @@
    "price_drop1": 772.19,
    "price_drop2": 809.68,
    "price_drop3": 839.66,
-   "price_retail_min": 1049.58
+   "price_retail_min": 1049.58,
+   "stock_sheet": null
   },
   {
    "model": "Grace іn pot / Грейс в горщику",
@@ -3816,7 +4038,8 @@
    "price_drop1": 1103.13,
    "price_drop2": 1156.68,
    "price_drop3": 1199.52,
-   "price_retail_min": 1499.4
+   "price_retail_min": 1499.4,
+   "stock_sheet": null
   },
   {
    "model": "Grace іn pot / Грейс в горщику",
@@ -3833,7 +4056,8 @@
    "price_drop1": 1497.11,
    "price_drop2": 1569.78,
    "price_drop3": 1627.92,
-   "price_retail_min": 2034.9
+   "price_retail_min": 2034.9,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian in a pot/ Українська в горщику",
@@ -3850,7 +4074,8 @@
    "price_drop1": 787.95,
    "price_drop2": 826.2,
    "price_drop3": 856.8,
-   "price_retail_min": 1071.0
+   "price_retail_min": 1071.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian in a pot/ Українська в горщику",
@@ -3867,7 +4092,8 @@
    "price_drop1": 1103.13,
    "price_drop2": 1156.68,
    "price_drop3": 1199.52,
-   "price_retail_min": 1499.4
+   "price_retail_min": 1499.4,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian in a pot/ Українська в горщику",
@@ -3884,7 +4110,8 @@
    "price_drop1": 1497.11,
    "price_drop2": 1569.78,
    "price_drop3": 1627.92,
-   "price_retail_min": 2034.9
+   "price_retail_min": 2034.9,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost in pot/Українська засніжена в горщику",
@@ -3901,7 +4128,8 @@
    "price_drop1": 1103.13,
    "price_drop2": 1156.68,
    "price_drop3": 1199.52,
-   "price_retail_min": 1499.4
+   "price_retail_min": 1499.4,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost in pot/Українська засніжена в горщику",
@@ -3918,7 +4146,8 @@
    "price_drop1": 1497.11,
    "price_drop2": 1569.78,
    "price_drop3": 1627.92,
-   "price_retail_min": 2034.9
+   "price_retail_min": 2034.9,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainіan Frost in pot/Українська засніжена в горщику",
@@ -3935,7 +4164,8 @@
    "price_drop1": 2048.67,
    "price_drop2": 2148.12,
    "price_drop3": 2227.68,
-   "price_retail_min": 2784.6
+   "price_retail_min": 2784.6,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime in a pot / Українська Преміум в горщику",
@@ -3952,7 +4182,8 @@
    "price_drop1": 809.0,
    "price_drop2": 848.23,
    "price_drop3": 879.65,
-   "price_retail_min": 1100.0
+   "price_retail_min": 1100.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime in a pot / Українська Преміум в горщику",
@@ -3969,7 +4200,8 @@
    "price_drop1": 1140.0,
    "price_drop2": 1195.24,
    "price_drop3": 1239.5,
-   "price_retail_min": 1549.0
+   "price_retail_min": 1549.0,
+   "stock_sheet": null
   },
   {
    "model": "Ukrainian Prime in a pot / Українська Преміум в горщику",
@@ -3986,7 +4218,8 @@
    "price_drop1": 1537.0,
    "price_drop2": 1611.64,
    "price_drop3": 1671.33,
-   "price_retail_min": 2089.0
+   "price_retail_min": 2089.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Ukrainian/Український",
@@ -4003,7 +4236,8 @@
    "price_drop1": 587.0,
    "price_drop2": 634.0,
    "price_drop3": 710.0,
-   "price_retail_min": 798.0
+   "price_retail_min": 798.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Ukrainian/Український",
@@ -4020,7 +4254,8 @@
    "price_drop1": 870.0,
    "price_drop2": 939.0,
    "price_drop3": 1052.0,
-   "price_retail_min": 1182.0
+   "price_retail_min": 1182.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Polissian/Віночок \"Поліський\"",
@@ -4037,7 +4272,8 @@
    "price_drop1": 512.0,
    "price_drop2": 553.0,
    "price_drop3": 619.0,
-   "price_retail_min": 696.0
+   "price_retail_min": 696.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Polissian/Віночок \"Поліський\"",
@@ -4054,7 +4290,8 @@
    "price_drop1": 665.0,
    "price_drop2": 718.0,
    "price_drop3": 805.0,
-   "price_retail_min": 904.0
+   "price_retail_min": 904.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Evergreen/ Вічнозелений Вінок",
@@ -4071,7 +4308,8 @@
    "price_drop1": 427.0,
    "price_drop2": 461.0,
    "price_drop3": 516.0,
-   "price_retail_min": 580.0
+   "price_retail_min": 580.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Evergreen/ Вічнозелений Вінок",
@@ -4088,7 +4326,8 @@
    "price_drop1": 584.0,
    "price_drop2": 631.0,
    "price_drop3": 706.0,
-   "price_retail_min": 794.0
+   "price_retail_min": 794.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Grace/ Віночок Грейс",
@@ -4105,7 +4344,8 @@
    "price_drop1": 690.0,
    "price_drop2": 745.0,
    "price_drop3": 834.0,
-   "price_retail_min": 938.0
+   "price_retail_min": 938.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Grace/ Віночок Грейс",
@@ -4122,7 +4362,8 @@
    "price_drop1": 926.0,
    "price_drop2": 1000.0,
    "price_drop3": 1120.0,
-   "price_retail_min": 1258.0
+   "price_retail_min": 1258.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Carpathian/ Віночок Карпатський",
@@ -4139,7 +4380,8 @@
    "price_drop1": 495.0,
    "price_drop2": 534.0,
    "price_drop3": 599.0,
-   "price_retail_min": 673.0
+   "price_retail_min": 673.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Carpathian/ Віночок Карпатський",
@@ -4156,7 +4398,8 @@
    "price_drop1": 627.0,
    "price_drop2": 677.0,
    "price_drop3": 759.0,
-   "price_retail_min": 853.0
+   "price_retail_min": 853.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Nobilis/ Віночок Нобіліс",
@@ -4173,7 +4416,8 @@
    "price_drop1": 502.0,
    "price_drop2": 543.0,
    "price_drop3": 608.0,
-   "price_retail_min": 683.0
+   "price_retail_min": 683.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Nobilis/ Віночок Нобіліс",
@@ -4190,7 +4434,8 @@
    "price_drop1": 630.0,
    "price_drop2": 680.0,
    "price_drop3": 762.0,
-   "price_retail_min": 856.0
+   "price_retail_min": 856.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Silvia Premium/Віночок Сільвія Преміум",
@@ -4207,7 +4452,8 @@
    "price_drop1": 975.0,
    "price_drop2": 1053.0,
    "price_drop3": 1179.0,
-   "price_retail_min": 1325.0
+   "price_retail_min": 1325.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Classic/Віночок Класичний",
@@ -4224,7 +4470,8 @@
    "price_drop1": 583.0,
    "price_drop2": 630.0,
    "price_drop3": 706.0,
-   "price_retail_min": 793.0
+   "price_retail_min": 793.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Classic/Віночок Класичний",
@@ -4241,7 +4488,8 @@
    "price_drop1": 817.0,
    "price_drop2": 883.0,
    "price_drop3": 989.0,
-   "price_retail_min": 1111.0
+   "price_retail_min": 1111.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Polissian Frosted/Віночок Поліський засніжений\"",
@@ -4258,7 +4506,8 @@
    "price_drop1": 756.0,
    "price_drop2": 816.0,
    "price_drop3": 914.0,
-   "price_retail_min": 1027.0
+   "price_retail_min": 1027.0,
+   "stock_sheet": null
   },
   {
    "model": "Wreath Lady White /Віночок Леді Вайт",
@@ -4275,7 +4524,8 @@
    "price_drop1": 1103.0,
    "price_drop2": 1191.0,
    "price_drop3": 1334.0,
-   "price_retail_min": 1499.0
+   "price_retail_min": 1499.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Ukrainian/гірлянда Українська",
@@ -4292,7 +4542,8 @@
    "price_drop1": 610.0,
    "price_drop2": 640.0,
    "price_drop3": 664.0,
-   "price_retail_min": 830.0
+   "price_retail_min": 830.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Ukrainian/гірлянда Українська",
@@ -4309,7 +4560,8 @@
    "price_drop1": 1497.0,
    "price_drop2": 1569.0,
    "price_drop3": 1627.0,
-   "price_retail_min": 2034.0
+   "price_retail_min": 2034.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Polissian/Гірдянда Поліська",
@@ -4326,7 +4578,8 @@
    "price_drop1": 540.0,
    "price_drop2": 566.0,
    "price_drop3": 587.0,
-   "price_retail_min": 556.0
+   "price_retail_min": 556.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Polissian/Гірдянда Поліська",
@@ -4343,7 +4596,8 @@
    "price_drop1": 1371.0,
    "price_drop2": 1437.0,
    "price_drop3": 1490.0,
-   "price_retail_min": 1412.0
+   "price_retail_min": 1412.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Classic/Гірлянда Класична",
@@ -4360,7 +4614,8 @@
    "price_drop1": 582.0,
    "price_drop2": 610.0,
    "price_drop3": 633.0,
-   "price_retail_min": 791.0
+   "price_retail_min": 791.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Classic/Гірлянда Класична",
@@ -4377,7 +4632,8 @@
    "price_drop1": 1434.0,
    "price_drop2": 1503.0,
    "price_drop3": 1559.0,
-   "price_retail_min": 1949.0
+   "price_retail_min": 1949.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Grace Frosted/Гірлянда Грейс засніжена",
@@ -4394,7 +4650,8 @@
    "price_drop1": 970.0,
    "price_drop2": 1017.0,
    "price_drop3": 1055.0,
-   "price_retail_min": 1318.0
+   "price_retail_min": 1318.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Grace Frosted/Гірлянда Грейс засніжена",
@@ -4411,7 +4668,8 @@
    "price_drop1": 2580.0,
    "price_drop2": 2706.0,
    "price_drop3": 2806.0,
-   "price_retail_min": 3507.0
+   "price_retail_min": 3507.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Grace/ Гірлянда Грейс",
@@ -4428,7 +4686,8 @@
    "price_drop1": 693.0,
    "price_drop2": 726.0,
    "price_drop3": 753.0,
-   "price_retail_min": 942.0
+   "price_retail_min": 942.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Grace/ Гірлянда Грейс",
@@ -4445,7 +4704,8 @@
    "price_drop1": 1843.0,
    "price_drop2": 1933.0,
    "price_drop3": 2004.0,
-   "price_retail_min": 2505.0
+   "price_retail_min": 2505.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Nobilis/ Гірлянда Нобіліс",
@@ -4462,7 +4722,8 @@
    "price_drop1": 495.0,
    "price_drop2": 519.0,
    "price_drop3": 538.0,
-   "price_retail_min": 673.0
+   "price_retail_min": 673.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Nobilis/ Гірлянда Нобіліс",
@@ -4479,7 +4740,8 @@
    "price_drop1": 1134.0,
    "price_drop2": 1189.0,
    "price_drop3": 1233.0,
-   "price_retail_min": 1541.0
+   "price_retail_min": 1541.0,
+   "stock_sheet": null
   },
   {
    "model": "\"Garland Silvia Premium / Гірлянда Сільвія Преміум",
@@ -4496,7 +4758,8 @@
    "price_drop1": 933.0,
    "price_drop2": 978.0,
    "price_drop3": 1014.0,
-   "price_retail_min": 1268.0
+   "price_retail_min": 1268.0,
+   "stock_sheet": null
   },
   {
    "model": "\"Garland Silvia Premium / Гірлянда Сільвія Преміум",
@@ -4513,7 +4776,8 @@
    "price_drop1": 2467.0,
    "price_drop2": 2587.0,
    "price_drop3": 2683.0,
-   "price_retail_min": 3353.0
+   "price_retail_min": 3353.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Grandia wide/ гірлянда Грандія широка",
@@ -4530,7 +4794,8 @@
    "price_drop1": 1104.0,
    "price_drop2": 1157.0,
    "price_drop3": 1200.0,
-   "price_retail_min": 1500.0
+   "price_retail_min": 1500.0,
+   "stock_sheet": null
   },
   {
    "model": "Garland Grandia wide/ гірлянда Грандія широка",
@@ -4547,7 +4812,62 @@
    "price_drop1": 2954.0,
    "price_drop2": 3098.0,
    "price_drop3": 3213.0,
-   "price_retail_min": 4016.0
+   "price_retail_min": 4016.0,
+   "stock_sheet": null
+  },
+  {
+   "model": "Ikebana Ukrainian/ Ікебана Українська",
+   "model_ua": "Ікебана Українська",
+   "article": "IK-UA-BR-3",
+   "height_m": null,
+   "size": "70 cm",
+   "diameter_cm": null,
+   "weight_kg": 1.4,
+   "volume_m3": 0.03,
+   "box": "65*16*31",
+   "parts": null,
+   "price_wholesale": 574.0,
+   "price_drop1": 591.0,
+   "price_drop2": 620.0,
+   "price_drop3": 643.0,
+   "price_retail_min": 803.0,
+   "stock_sheet": 2.0
+  },
+  {
+   "model": "Ikebana Grace / Ікебана Грейс",
+   "model_ua": "Ікебана Грейс",
+   "article": "IK-GR-BR-6",
+   "height_m": null,
+   "size": "72 cm",
+   "diameter_cm": null,
+   "weight_kg": 1.3,
+   "volume_m3": 0.03,
+   "box": "65*16*31",
+   "parts": null,
+   "price_wholesale": 551.0,
+   "price_drop1": 567.0,
+   "price_drop2": 595.0,
+   "price_drop3": 617.0,
+   "price_retail_min": 771.0,
+   "stock_sheet": 2.0
+  },
+  {
+   "model": "Ikebana Nobilis/ Ікебана Нобіліс",
+   "model_ua": "Ікебана Нобіліс",
+   "article": "IK-Nb-BR-8",
+   "height_m": null,
+   "size": "56 cm",
+   "diameter_cm": null,
+   "weight_kg": 1.2,
+   "volume_m3": 0.03,
+   "box": "65*16*31",
+   "parts": null,
+   "price_wholesale": 527.0,
+   "price_drop1": 542.0,
+   "price_drop2": 569.0,
+   "price_drop3": 590.0,
+   "price_retail_min": 737.0,
+   "stock_sheet": 2.0
   },
   {
    "model": "Fly Tree Grace / Підвісна ялинка Грейс",
@@ -4564,7 +4884,8 @@
    "price_drop1": 787.95,
    "price_drop2": 826.2,
    "price_drop3": 856.8,
-   "price_retail_min": 1071.0
+   "price_retail_min": 1071.0,
+   "stock_sheet": null
   },
   {
    "model": "Fly Tree Grace / Підвісна ялинка Грейс",
@@ -4581,7 +4902,8 @@
    "price_drop1": 1103.13,
    "price_drop2": 1156.7,
    "price_drop3": 1199.5,
-   "price_retail_min": 1499.4
+   "price_retail_min": 1499.4,
+   "stock_sheet": null
   },
   {
    "model": "Fly Tree Grace / Підвісна ялинка Грейс",
@@ -4598,7 +4920,8 @@
    "price_drop1": 1497.11,
    "price_drop2": 1569.8,
    "price_drop3": 1627.9,
-   "price_retail_min": 2034.9
+   "price_retail_min": 2034.9,
+   "stock_sheet": null
   },
   {
    "model": "Fly Tree Ukraine / Підвісна ялинка Українська",
@@ -4615,7 +4938,8 @@
    "price_drop1": 787.95,
    "price_drop2": 826.2,
    "price_drop3": 856.8,
-   "price_retail_min": 1071.0
+   "price_retail_min": 1071.0,
+   "stock_sheet": null
   },
   {
    "model": "Fly Tree Ukraine / Підвісна ялинка Українська",
@@ -4632,7 +4956,8 @@
    "price_drop1": 1103.13,
    "price_drop2": 1156.7,
    "price_drop3": 1199.5,
-   "price_retail_min": 1499.4
+   "price_retail_min": 1499.4,
+   "stock_sheet": null
   },
   {
    "model": "Fly Tree Ukraine / Підвісна ялинка Українська",
@@ -4649,7 +4974,134 @@
    "price_drop1": 1497.11,
    "price_drop2": 1569.8,
    "price_drop3": 1627.9,
-   "price_retail_min": 2034.9
+   "price_retail_min": 2034.9,
+   "stock_sheet": null
+  },
+  {
+   "model": "Wall Tree Ukrainian / Настінна ялинка Українська",
+   "model_ua": "Настінна ялинка Українська",
+   "article": "WT-UA-BR-3",
+   "height_m": null,
+   "size": "70 cm",
+   "diameter_cm": null,
+   "weight_kg": 1.4,
+   "volume_m3": 0.03,
+   "box": "",
+   "parts": null,
+   "price_wholesale": 392.0,
+   "price_drop1": 403.76,
+   "price_drop2": 423.36,
+   "price_drop3": 439.04,
+   "price_retail_min": 548.8,
+   "stock_sheet": null
+  },
+  {
+   "model": "Wall Tree Grace / Настінна ялинка Грейс",
+   "model_ua": "Настінна ялинка Грейс",
+   "article": "WT-GR-BR-6",
+   "height_m": null,
+   "size": "72 cm",
+   "diameter_cm": null,
+   "weight_kg": 1.3,
+   "volume_m3": 0.03,
+   "box": "",
+   "parts": null,
+   "price_wholesale": 392.0,
+   "price_drop1": 403.76,
+   "price_drop2": 423.36,
+   "price_drop3": 439.04,
+   "price_retail_min": 548.8,
+   "stock_sheet": null
+  },
+  {
+   "model": "Wall Tree Nobilis/ Настінна ялинка Нобіліс",
+   "model_ua": "Настінна ялинка Нобіліс",
+   "article": "WT-Nb-BR-8",
+   "height_m": null,
+   "size": "56 cm",
+   "diameter_cm": null,
+   "weight_kg": 1.2,
+   "volume_m3": 0.03,
+   "box": "",
+   "parts": null,
+   "price_wholesale": 294.0,
+   "price_drop1": 302.82,
+   "price_drop2": 317.52,
+   "price_drop3": 329.28,
+   "price_retail_min": 411.6,
+   "stock_sheet": null
+  },
+  {
+   "model": "Wall Tree Silvia Premium/ Настінна ялинка Cільвія Преміум",
+   "model_ua": "Настінна ялинка Сільвія Преміум",
+   "article": "WT-SP-BR-3/9",
+   "height_m": null,
+   "size": "72 сm",
+   "diameter_cm": null,
+   "weight_kg": 0.7,
+   "volume_m3": null,
+   "box": "17*17*60",
+   "parts": null,
+   "price_wholesale": 392.0,
+   "price_drop1": 403.76,
+   "price_drop2": 423.36,
+   "price_drop3": 439.04,
+   "price_retail_min": 548.8,
+   "stock_sheet": null
+  },
+  {
+   "model": "Gift Tree Ukrainian / Подарункова ялинка Українська",
+   "model_ua": "Подарункова ялинка Українська",
+   "article": "GT-UA-BR-3",
+   "height_m": null,
+   "size": "0,6",
+   "diameter_cm": null,
+   "weight_kg": 1.4,
+   "volume_m3": 0.02,
+   "box": "17*17*60",
+   "parts": null,
+   "price_wholesale": 543.0,
+   "price_drop1": 559.0,
+   "price_drop2": 586.0,
+   "price_drop3": 608.0,
+   "price_retail_min": 760.0,
+   "stock_sheet": null
+  },
+  {
+   "model": "Gift Tree Grace /Подарункова ялинка Грейс",
+   "model_ua": "Подарункова ялинка Грейс",
+   "article": "GT-GR-BR-6",
+   "height_m": null,
+   "size": "0,6",
+   "diameter_cm": null,
+   "weight_kg": 1.3,
+   "volume_m3": 0.02,
+   "box": "17*17*60",
+   "parts": null,
+   "price_wholesale": 521.0,
+   "price_drop1": 537.0,
+   "price_drop2": 563.0,
+   "price_drop3": 584.0,
+   "price_retail_min": 730.0,
+   "stock_sheet": null
+  },
+  {
+   "model": "Gift Tree Nobilis/ Подарункова ялинка Нобіліс",
+   "model_ua": "Подарункова ялинка Нобіліс",
+   "article": "GT-Nb-BR-8",
+   "height_m": null,
+   "size": "0,6",
+   "diameter_cm": null,
+   "weight_kg": 1.2,
+   "volume_m3": 0.02,
+   "box": "17*17*60",
+   "parts": null,
+   "price_wholesale": 514.0,
+   "price_drop1": 530.0,
+   "price_drop2": 555.0,
+   "price_drop3": 576.0,
+   "price_retail_min": 720.0,
+   "stock_sheet": null
   }
  ]
 }

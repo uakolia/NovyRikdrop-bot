@@ -26,6 +26,7 @@ INFO_COLS = {
     "box": ("size box",),
     "volume": ("packaging volume",),
     "parts": ("number of parts",),
+    "stock": ("наявність",),    # залишок на складі, ведеться в прайсі
 }
 
 
@@ -153,6 +154,21 @@ def parse_rows(rows):
     items = []
     colmap = None
     current_model = None
+    # Товар, у якого в рядку артикула немає дроп-цін. У вкладках Ikebana,
+    # NEW Wall Tree і Mini Tree ціни набиті на 3–4 рядки нижче, в тому ж блоці
+    # товару (наприклад ікебана IK-UA-BR-3 — рядок 3, а дроп 2 і дроп 3 —
+    # рядок 6). Через це всі 10 товарів цих трьох вкладок бот просто не бачив.
+    # Беремо ПЕРШИЙ рядок із цінами й без артикула, що трапиться після товару.
+    pending = None
+
+    def _with_prices(item, drop2, drop3, cell):
+        """Добити ціни з рядка нижче, не перетираючи те, що вже знайшлося."""
+        item["price_drop2"] = drop2
+        item["price_drop3"] = drop3
+        for field in ("price_wholesale", "price_drop1", "price_retail_min"):
+            if not item.get(field):
+                item[field] = _num(cell(field))
+        return item
 
     for cells in rows:
         cells = [str(c) if c is not None else "" for c in cells]
@@ -160,6 +176,7 @@ def parse_rows(rows):
         if hm:
             colmap = hm
             current_model = None
+            pending = None
             continue
         if not colmap:
             continue
@@ -175,13 +192,16 @@ def parse_rows(rows):
             current_model = name
 
         article = cell("article")
-        if (not article or article.lower() == "article" or len(article) > 25
-                or not re.search(r"\d", article) or "tree" in article.lower()):
-            continue
         drop2 = _num(cell("price_drop2"))
         drop3 = _num(cell("price_drop3"))
-        if not (drop2 or drop3):
-            continue  # рядок без цін (немає в наявності)
+        if (not article or article.lower() == "article" or len(article) > 25
+                or not re.search(r"\d", article) or "tree" in article.lower()):
+            # рядок без артикула: якщо в ньому ціни, а вище був товар без цін —
+            # це його ціни
+            if pending is not None and (drop2 or drop3):
+                items.append(_with_prices(pending, drop2, drop3, cell))
+                pending = None
+            continue
         if not current_model:
             continue
 
@@ -207,8 +227,15 @@ def parse_rows(rows):
             "price_drop2": drop2,
             "price_drop3": drop3,
             "price_retail_min": _num(cell("price_retail_min")),
+            # «Наявність» із прайсу: загальний залишок на складі. Для товарів,
+            # яких немає в «Залишках дропшиперів», це єдине джерело кількості.
+            "stock_sheet": _num(cell("stock")),
         }
-        items.append(item)
+        if drop2 or drop3:
+            items.append(item)
+            pending = None
+        else:
+            pending = item          # ціни пошукаємо нижче, в блоці товару
 
     # дедуплікація: об'єднані по вертикалі клітинки повторюють артикул у кількох
     # рядках; відсутні поля добираємо з наступних рядків-дублікатів

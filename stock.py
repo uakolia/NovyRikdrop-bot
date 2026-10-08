@@ -155,9 +155,35 @@ def cached_name(user_id, article: str) -> str:
     return str((cached_row(user_id, article) or {}).get("name") or "").strip()
 
 
+def sheet_stock(article: str):
+    """«Наявність» із прайсу або None.
+
+    Для ікебан, настінних і подарункових ялинок персональних залишків немає —
+    кількість ведеться однією колонкою в прайсі. Без цього бот показував би
+    такі товари без обмежень і дав би замовити більше, ніж є на складі.
+    """
+    import catalog
+    item = catalog.by_article(article)
+    if not item:
+        return None
+    value = item.get("stock_sheet")
+    return None if value is None else _int(value)
+
+
+def has_row(user_id, article: str) -> bool:
+    """Чи ведеться для цього товару ПЕРСОНАЛЬНИЙ залишок (видано/резерв).
+
+    Тільки такі позиції можна резервувати: для решти рядка в таблиці немає,
+    і скрипт відповів би «no stock row».
+    """
+    return cached_row(user_id, article) is not None
+
+
 def cached_available(user_id, article: str):
     row = cached_row(user_id, article)
-    return None if row is None else _int(row.get("available"))
+    if row is None:
+        return sheet_stock(article)
+    return _int(row.get("available"))
 
 
 def _int(value) -> int:
@@ -168,9 +194,14 @@ def _int(value) -> int:
 
 
 async def available(user_id, article: str) -> int | None:
-    """Скільки вільно. None — рядка немає, залишок для цього товару не ведеться."""
+    """Скільки вільно. None — кількість для цього товару не ведеться ніде.
+
+    Спершу персональний залишок дропшипера, далі «Наявність» із прайсу.
+    """
     row = await row_for(user_id, article)
-    return None if row is None else _int(row.get("available"))
+    if row is None:
+        return sheet_stock(article)
+    return _int(row.get("available"))
 
 
 async def display_name(user_id, article: str) -> str:

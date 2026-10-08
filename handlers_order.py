@@ -947,8 +947,12 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
 
     # ---- резерв УСІХ позицій до першої накладної, «все або нічого» ----
     to_reserve = []
+    await stock.rows_for(user.id)               # гріємо кеш під has_row
     for it in items:
-        if await stock.available(user.id, it["article"]) is not None:
+        # резерв — лише для позицій із персональним залишком: для ікебан і
+        # настінних ялинок рядка в «Залишках» немає, кількість ведеться в
+        # прайсі, і спроба резерву впала б із «no stock row»
+        if stock.has_row(user.id, it["article"]):
             to_reserve.append({"article": it["article"], "qty": it["qty"]})
     if to_reserve:
         res, res_err = await stock.reserve_many(user.id, to_reserve)
