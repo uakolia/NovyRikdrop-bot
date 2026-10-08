@@ -87,9 +87,11 @@ async def cmd_sheetcheck(msg: Message):
     if not sheets_api.enabled():
         await msg.answer(
             "ℹ️ <b>Прямий доступ вимкнено</b> — бот ходить у таблицю через "
-            "Apps Script.\nЩоб увімкнути: задайте <code>ORDERS_SHEET_ID</code> "
-            "і <code>GOOGLE_SERVICE_ACCOUNT_JSON</code>, а сервісний акаунт "
-            "додайте <b>редактором</b> таблиці замовлень.")
+            "Apps Script.\n\nОсь що бот бачить у змінних:\n"
+            + "\n".join(sheets_api.settings_report())
+            + "\n\nЯкщо змінна тут «не задано», а в Railway вона є — "
+              "перевірте назву (без пробілів), той самий сервіс і середовище, "
+              "і що після додавання був новий деплой.")
         return
     await msg.answer("⏳ Читаю таблицю напряму…")
     import time
@@ -98,7 +100,8 @@ async def cmd_sheetcheck(msg: Message):
     ms = (time.perf_counter() - t) * 1000
     head = ("✅ <b>Прямий доступ працює</b>" if ok
             else "⚠️ <b>Схема аркушів розійшлася</b>")
-    body = [head, f"Читання заголовків: {ms:.0f} мс", ""] + lines
+    body = ([head, f"Читання заголовків: {ms:.0f} мс", ""]
+            + sheets_api.settings_report() + [""] + lines)
     if ok:
         body += ["", "📊 " + await sheets_api.counts()]
     else:

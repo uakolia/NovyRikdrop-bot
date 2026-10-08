@@ -84,6 +84,51 @@ def enabled() -> bool:
     return bool(_sheet_id() and (config.GOOGLE_SERVICE_ACCOUNT_JSON or "").strip())
 
 
+def settings_report() -> list:
+    """Що бот бачить у змінних середовища — рядками для адміна.
+
+    Потрібне, бо «прямий доступ вимкнено» нічого не каже про причину: змінну
+    могли назвати інакше, задати в іншому сервісі Railway або не передеплоїти.
+    Пошту сервісного акаунта показуємо окремо: саме її треба додати редактором
+    таблиці, і саме тут видно, чи це той акаунт, якому ви дали доступ.
+    """
+    lines = []
+    sid = _sheet_id()
+    lines.append(f"ORDERS_SHEET_ID: {'✅ ' + _short_id(sid) if sid else '❌ не задано'}")
+
+    raw = (config.GOOGLE_SERVICE_ACCOUNT_JSON or "").strip()
+    if not raw:
+        lines.append("GOOGLE_SERVICE_ACCOUNT_JSON: ❌ не задано")
+    else:
+        email = project = ""
+        try:
+            info = json.load(open(raw, encoding="utf-8")) if os.path.exists(raw) \
+                else json.loads(raw)
+            email = str(info.get("client_email") or "")
+            project = str(info.get("project_id") or "")
+        except (OSError, ValueError) as e:
+            lines.append(f"GOOGLE_SERVICE_ACCOUNT_JSON: ⚠️ не читається ({e})")
+        if email:
+            lines.append(f"GOOGLE_SERVICE_ACCOUNT_JSON: ✅ {email}")
+            if project:
+                lines.append(f"проєкт Google: {project}")
+
+    export = (config.DROPSHIPPER_EXPORT_SHEETS_JSON or "").strip()
+    if not export:
+        lines.append("DROPSHIPPER_EXPORT_SHEETS_JSON: ❌ не задано — "
+                     "замовлення не дублюються дропшиперу")
+    else:
+        try:
+            n = len(json.loads(export) or {})
+            lines.append(f"DROPSHIPPER_EXPORT_SHEETS_JSON: ✅ таблиць {n}")
+        except ValueError as e:
+            lines.append(f"DROPSHIPPER_EXPORT_SHEETS_JSON: ⚠️ не JSON ({e})")
+
+    hook = "✅" if config.SHEET_WEBHOOK_URL else "❌"
+    lines.append(f"SHEET_WEBHOOK_URL (запас через Apps Script): {hook}")
+    return lines
+
+
 def _sheet_id() -> str:
     return (getattr(config, "ORDERS_SHEET_ID", "") or "").strip()
 
