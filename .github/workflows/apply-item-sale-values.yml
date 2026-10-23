@@ -1,0 +1,39 @@
+name: Apply reviewed per-item sale values
+on:
+  push:
+    branches: [main]
+    paths: ['tools/apply_item_sale_values.py']
+permissions:
+  contents: write
+concurrency:
+  group: apply-item-sale-values
+  cancel-in-progress: false
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify baseline and backup
+        run: |
+          test "$(git rev-parse HEAD^)" = "059f9cfed8d890cc7d6823d2e6ecbcd82b6cc334"
+          test "$(git ls-remote origin refs/heads/backup/pre-item-sale-values-2026-10-22 | cut -f1)" = "059f9cfed8d890cc7d6823d2e6ecbcd82b6cc334"
+      - name: Apply source changes and run offline tests
+        run: |
+          python tools/apply_item_sale_values.py
+          python -m compileall -q order_pricing.py shipment_boxes.py handlers_order.py catalog_parser.py novaposhta.py ttn_retry.py webhook.py
+          python test_shipment_boxes.py
+          python test_item_sale_values.py
+          git diff --check
+      - name: Commit verified application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add handlers_order.py shipment_boxes.py catalog_parser.py novaposhta.py ttn_retry.py webhook.py
+          git commit -m "Collect item sale prices and set per-package declared values"
+          git push origin HEAD:main
