@@ -7,6 +7,7 @@ CSV-експорт Google Таблиці або markdown-експорт. Пра�
 і будує мапу колонок для кожної секції окремо.
 """
 import re
+import math
 import unicodedata
 
 PRICE_COLS = {
@@ -18,14 +19,14 @@ PRICE_COLS = {
 }
 
 INFO_COLS = {
-    "article": ("article",),
-    "height": ("height",),
+    "article": ("article", "артикул"),
+    "height": ("height", "висота"),
     "size": ("size",),          # для гірлянд/ікебан "Size" замість Height
     "diameter": ("diameter",),
-    "weight": ("weight",),
-    "box": ("size box",),
+    "weight": ("weight", "вага"),
+    "box": ("size box", "розмір коробки"),
     "volume": ("packaging volume",),
-    "parts": ("number of parts",),
+    "parts": ("number of parts", "кількість частин"),
     "stock": ("наявність",),    # залишок на складі, ведеться в прайсі
 }
 
@@ -55,7 +56,7 @@ def _num(s):
 def _header_map(cells):
     """Якщо рядок — заголовок секції, повернути мапу {поле: індекс}."""
     lowered = [_norm(c).lower() for c in cells]
-    if not any(c == "article" for c in lowered):
+    if not any(c in ("article", "артикул") for c in lowered):
         return None
     m = {}
     for field, keys in {**INFO_COLS, **PRICE_COLS}.items():
@@ -209,8 +210,6 @@ def parse_rows(rows):
         size_txt = cell("size") or cell("height")
         weight = _num(cell("weight"))
         volume = _num(cell("volume"))
-        if weight is None and volume:
-            weight = round(volume * 120, 1)  # оцінка: ~120 кг/м³ для литих ялинок
         item = {
             "model": current_model,
             "model_ua": _ua_name(current_model),
@@ -261,28 +260,12 @@ def parse_rows(rows):
                     it["model_ua"] = f"{noun} {it['model_ua']}"
                 break
 
-    # добір ваги/об'єму, де їх немає в прайсі: оцінка за товарами тієї ж моделі
-    # (вага ~ пропорційна висоті^2), інакше за середнім по висоті в каталозі
-    by_model = {}
+    # Actual weight only; missing weight is an explicit 10 kg estimate.
     for it in result:
-        by_model.setdefault(it["model"], []).append(it)
-    for it in result:
-        if it["weight_kg"]:
-            continue
-        h = it["height_m"]
-        est = None
-        if h:
-            sib = [s for s in by_model[it["model"]] if s["weight_kg"] and s["height_m"]]
-            if sib:
-                ref = min(sib, key=lambda s: abs(s["height_m"] - h))
-                est = ref["weight_kg"] * (h / ref["height_m"]) ** 2
-            else:
-                any_h = [s for s in result if s["weight_kg"] and s["height_m"]]
-                near = [s for s in any_h if abs(s["height_m"] - h) <= 0.31]
-                if near:
-                    est = sum(s["weight_kg"] for s in near) / len(near)
-        it["weight_kg"] = round(est, 1) if est else 5.0
-        it["weight_estimated"] = True
+        w = it.get("weight_kg")
+        if w is None or not math.isfinite(w) or w <= 0:
+            it["weight_kg"] = 10.0
+            it["weight_estimated"] = True
     return result
 
 

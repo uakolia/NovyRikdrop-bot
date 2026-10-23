@@ -13,6 +13,7 @@ import article_key
 import catalog, config, keyboards as kb, novaposhta as np, orders, payment, storage
 import perf
 import stock
+import shipment_boxes
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -149,6 +150,14 @@ def cart_total(user_id, cart) -> int:
     return sum(cart_price(user_id, i) for i in cart)
 
 
+def _cart_places(cart):
+    try:
+        return shipment_boxes.place_count(
+            [(catalog.by_article(c["article"]) or {}, c["qty"]) for c in cart])
+    except shipment_boxes.PackagingError:
+        return "потрібне уточнення розмірів коробок"
+
+
 async def show_cart(target, state: FSMContext):
     """Кошик: що вже обрано, і куди далі."""
     data = await state.get_data()
@@ -172,7 +181,7 @@ async def show_cart(target, state: FSMContext):
     lines.append(f"\n💰 <b>Разом: {cart_total(uid, cart):,} грн</b>"
                  .replace(",", " "))
     lines.append(f"\nУсі позиції поїдуть однією накладною, місць: "
-                 f"{sum(int(i['qty']) for i in cart)}.")
+                 f"{_cart_places(cart)}.")
     await _send(target, "\n".join(lines), reply_markup=kb.cart_kb(buttons))
 
 
@@ -437,7 +446,7 @@ async def show_confirm(target, state: FSMContext):
     lines = ["📋 <b>Перевірте замовлення</b>\n"]
     lines += await cart_lines(uid, cart)
     tail = (f"\nУсі позиції поїдуть однією накладною, місць: "
-            f"{sum(int(i['qty']) for i in cart)}."
+            f"{_cart_places(cart)}."
             if len(cart) > 1 else "")
     await _send(target,
                 "\n".join(lines) +
@@ -1009,20 +1018,27 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
 async def _create_ttn(rows, data, user, to_door: bool):
     """Одна накладна на все замовлення. Повертає (успіх, примітка/помилка).
 
-    Вага, обʼєм і вартість — суми позицій, місць — стільки, скільки одиниць
-    товару: дві ялинки їдуть однією накладною на два місця.
+    Кожна фізична коробка є окремим місцем з індивідуальними параметрами.
     """
     items = []
     for row in rows:
         item = catalog.by_article(row["article"])
-        if item:
-            items.append((item, int(row["qty"])))
+        if item is None:
+            return False, "У каталозі немає артикула: " + str(row["article"])
+        items.append((item, int(row["qty"])))
     if not items:
         return False, "немає позицій"
 
-    weight = sum((it["weight_kg"] or 5) * q for it, q in items)
-    volume = sum((it.get("volume_m3") or 0) * q for it, q in items)
-    seats = sum(q for _, q in items)
+    try:
+        shipment = shipment_boxes.build_shipment(items)
+    except shipment_boxes.PackagingError as exc:
+        for row in rows:
+            row["status"] = "ТТН НЕ створено"
+            row["comment"] = str(exc)
+        return False, str(exc)
+    weight, volume, seats = shipment["weight"], shipment["volume"], shipment["seats"]
+    for warning in shipment["warnings"]:
+        log.warning("Параметри упаковки: %s", warning)
     # Оцінена вартість у накладній — ціна продажу клієнту: саме на цю суму НП
     # страхує відправлення. Дроп-ціна тут була б заниженою страховкою.
     cost = int(data.get("sale_price") or 0) or sum(
@@ -1038,6 +1054,7 @@ async def _create_ttn(rows, data, user, to_door: bool):
             weight=weight,
             volume=volume or None,
             seats=seats,
+            options_seat=shipment["options_seat"],
             cod_amount=data.get("cod_amount") or 0,
             to_door=to_door,
             street_ref=(data.get("street") or {}).get("ref", ""),

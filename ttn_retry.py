@@ -15,6 +15,7 @@ import re
 
 import article_key
 import catalog
+import shipment_boxes
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ async def create_for_order(order_no: str, force: bool = False):
     seats = 0
     cost = 0
     unknown = []
+    packaging_items = []
     for r in rows:
         item = catalog.by_article(str(r.get("article") or ""))
         qty = _int(r.get("qty"))
@@ -122,11 +124,18 @@ async def create_for_order(order_no: str, force: bool = False):
         if item is None:
             unknown.append(r.get("article"))
             continue
-        weight += (item.get("weight_kg") or 5) * qty
-        volume += (item.get("volume_m3") or 0) * qty
+        packaging_items.append((item, qty))
     if unknown:
         raise RetryError("у каталозі немає артикулів: " + ", ".join(unknown)
                          + ". Спробуйте /reload")
+
+    try:
+        shipment = shipment_boxes.build_shipment(packaging_items)
+    except shipment_boxes.PackagingError as exc:
+        raise RetryError(str(exc)) from exc
+    weight, volume, seats = shipment["weight"], shipment["volume"], shipment["seats"]
+    for warning in shipment["warnings"]:
+        log.warning("Параметри упаковки: %s", warning)
 
     # страхова сума — ціна продажу клієнту (одна на замовлення), не дроп-ціна
     sale = int(_num(head.get("sale_price")))
@@ -151,7 +160,8 @@ async def create_for_order(order_no: str, force: bool = False):
         cost=cost,
         weight=weight,
         volume=volume or None,
-        seats=max(seats, 1),
+        seats=seats,
+        options_seat=shipment["options_seat"],
         cod_amount=_num(head.get("cod_amount")),
         to_door=False,
     )

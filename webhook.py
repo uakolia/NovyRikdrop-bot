@@ -14,6 +14,7 @@ POST /weblium?secret=...   JSON-тіло, поля (будь-які з них):
 знайти місто і вантажне відділення в НП — створить і ТТН.
 """
 import logging
+import shipment_boxes
 
 from aiohttp import web
 
@@ -84,6 +85,7 @@ async def handle_weblium(request: web.Request):
                 want = re.sub(r"\D", "", order["warehouse"])
                 match = [w for w in whs if want and str(w["number"]) == want]
                 if len(match) == 1:
+                    shipment = shipment_boxes.build_shipment([(item, qty)])
                     res = await np.create_ttn(
                         recipient_city_ref=cities[0]["ref"],
                         recipient_warehouse_ref=match[0]["ref"],
@@ -91,9 +93,10 @@ async def handle_weblium(request: web.Request):
                         # замовлення з сайту: дропшипера немає → заводська назва
                         description=catalog.ttn_description(item, None),
                         cost=catalog.drop_price(item) * qty,
-                        weight=(item["weight_kg"] or 5) * qty,
-                        volume=(item.get("volume_m3") or 0) * qty or None,
-                        seats=qty)
+                        weight=shipment["weight"],
+                        volume=shipment["volume"],
+                        seats=shipment["seats"],
+                        options_seat=shipment["options_seat"])
                     order["ttn"] = res["ttn"]
                     order["status"] = "ТТН створено"
                     order["warehouse"] = match[0]["name"]

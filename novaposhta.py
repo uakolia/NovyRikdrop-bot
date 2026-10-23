@@ -212,11 +212,14 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
                      fio: str, phone: str, description: str, cost: float,
                      weight: float, volume: float | None, seats: int = 1,
                      cod_amount: float = 0, to_door: bool = False,
-                     street_ref: str = "", building: str = "", flat: str = ""):
+                     street_ref: str = "", building: str = "", flat: str = "",
+                     options_seat: list[dict] | None = None):
     """Створити ТТН. cod_amount > 0 додає «Контроль оплати» на цю суму.
 
     Повертає {ttn, ref, cost_delivery, estimated_date}.
     """
+    if not options_seat:
+        raise NPError("Немає індивідуальних параметрів коробок; ТТН не створено")
     import np_store
     if not np_store.is_ready():
         raise NPError("відправника не налаштовано — адмін: команда /np_setup")
@@ -258,8 +261,10 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
         "ContactRecipient": recipient_contact,
         "RecipientsPhone": phone,
     }
-    if volume:
-        props["VolumeGeneral"] = str(round(volume, 3))
+    props["OptionsSeat"] = options_seat
+    props["SeatsAmount"] = str(len(options_seat))
+    props["Weight"] = str(round(sum(float(p["weight"]) for p in options_seat), 2))
+    props["VolumeGeneral"] = str(sum(float(p["volumetricVolume"]) for p in options_seat))
     # Контроль оплати: клієнт платить суму у відділенні, НП переказує на IBAN
     if cod_amount and config.NP_PAYMENT_CONTROL:
         props["AfterpaymentOnGoodsCost"] = str(int(cod_amount))
