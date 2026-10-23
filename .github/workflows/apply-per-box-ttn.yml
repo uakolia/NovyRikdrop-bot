@@ -1,0 +1,39 @@
+name: Apply reviewed per-box TTN fix
+on:
+  push:
+    branches: [main]
+    paths: ['tools/apply_per_box_ttn.py']
+permissions:
+  contents: write
+concurrency:
+  group: apply-per-box-ttn
+  cancel-in-progress: false
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify reviewed baseline and backup
+        run: |
+          test "$(git rev-parse HEAD^)" = "0eb84488795968d0117f5464c06f610c0f300516"
+          test "$(git ls-remote origin refs/heads/backup/pre-per-box-ttn-2026-10-22 | cut -f1)" = "0eb84488795968d0117f5464c06f610c0f300516"
+      - name: Apply guarded source edits
+        run: python tools/apply_per_box_ttn.py
+      - name: Validate syntax and offline payload
+        run: |
+          python -m compileall -q shipment_boxes.py catalog_parser.py handlers_order.py webhook.py novaposhta.py ttn_retry.py
+          python test_shipment_boxes.py
+          git diff --check
+      - name: Commit tested source changes to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog_parser.py handlers_order.py webhook.py novaposhta.py ttn_retry.py
+          git commit -m "Fix TTN individual box dimensions, weights and place counts"
+          git push origin HEAD:main
