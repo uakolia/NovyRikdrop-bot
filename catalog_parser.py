@@ -25,7 +25,7 @@ INFO_COLS = {
     "diameter": ("diameter",),
     "weight": ("weight", "вага"),
     "box": ("size box", "розмір коробки"),
-    "volume": ("packaging volume",),
+    "volume": ("packaging volume", "об'ємна вага", "об’ємна вага", "об'єм упаковки", "об’єм упаковки"),
     "parts": ("number of parts", "кількість частин"),
     "stock": ("наявність",),    # залишок на складі, ведеться в прайсі
 }

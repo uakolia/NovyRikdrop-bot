@@ -14,6 +14,7 @@ import catalog, config, keyboards as kb, novaposhta as np, orders, payment, stor
 import perf
 import stock
 import shipment_boxes
+import order_pricing
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -247,12 +248,7 @@ async def show_payment(target, state: FSMContext):
 
 
 async def show_sale_price(target, state: FSMContext):
-    await state.set_state(Order.sale_price)
-    await _send(target, "💰 Введіть <b>вашу ціну продажу</b> для клієнта, грн\n"
-                        "(наприклад: <i>4500</i>)\n\n"
-                        "<i>Це буде оцінена вартість (страхова сума) "
-                        "у накладній Нової Пошти.</i>",
-                reply_markup=_back_kb("sale_price"))
+    await order_pricing.show_price(target, state)
 
 
 async def show_prepaid(target, state: FSMContext):
@@ -410,6 +406,9 @@ async def cart_lines(user_id, cart) -> list[str]:
         left = await stock.available(user_id, it["article"])
         if left is not None:
             line += f" (доступно {left})"
+        if it.get("unit_sale_price"):
+            unit = int(it["unit_sale_price"])
+            line += f"\n    Продаж: {unit} грн/шт.; сума: {unit*int(it['qty'])} грн"
         out.append(line)
     return out
 
@@ -493,6 +492,10 @@ SHOW = {
 @router.callback_query(F.data.startswith("back:"))
 async def go_back(cb: CallbackQuery, state: FSMContext):
     step = cb.data.split(":", 1)[1]
+    if step == "sale_price":
+        await order_pricing.back_price(cb, state)
+        await cb.answer()
+        return
     prev = PREV.get(step, "category")
     data = await state.get_data()
     # пропускаємо кроки, яких не було в цьому сценарії
@@ -603,6 +606,11 @@ def _valid_name(text: str) -> str | None:
 @router.callback_query(F.data.startswith("pay:"), Order.payment)
 async def pick_payment(cb: CallbackQuery, state: FSMContext):
     payment = cb.data.split(":", 1)[1]
+    data = await state.get_data()
+    cart = [dict(c) for c in cart_of(data)]
+    for c in cart:
+        c.pop("unit_sale_price", None)
+    await state.update_data(cart=cart, sale_price_idx=0, sale_price=0, prepaid=0, cod_amount=0)
     await state.update_data(payment=payment)
     # ціну продажу питаємо в будь-якому разі: вона йде в накладну як оцінена
     # вартість (страхова сума), а не лише для розрахунку післяплати
@@ -612,22 +620,7 @@ async def pick_payment(cb: CallbackQuery, state: FSMContext):
 
 @router.message(Order.sale_price, F.text)
 async def input_sale_price(msg: Message, state: FSMContext):
-    amount = _amount(msg.text)
-    if amount is None:
-        await msg.answer("⚠️ Введіть суму числом у гривнях, наприклад <i>4500</i>:",
-                         reply_markup=_back_kb("sale_price"))
-        return
-    data = await state.get_data()
-    await state.update_data(sale_price=amount)
-    if data["payment"] == "часткова":
-        await show_prepaid(msg, state)
-    elif data["payment"] == "передплата":
-        # уже оплачено повністю: при отриманні клієнт не платить нічого
-        await state.update_data(prepaid=amount, cod_amount=0)
-        await show_lname(msg, state)
-    else:
-        await state.update_data(prepaid=0, cod_amount=amount)
-        await show_lname(msg, state)
+    await order_pricing.input_price(msg, state)
 
 
 @router.message(Order.prepaid, F.text)
@@ -908,6 +901,10 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
     if not cart:
         await show_category(target, state)
         return
+    if any(not c.get("unit_sale_price") for c in cart):
+        await state.update_data(sale_price_idx=0)
+        await show_sale_price(target, state)
+        return
     to_door = bool(data.get("to_door"))
 
     # номер продовжується з таблиці, а читання таблиці йде у фоні після старту;
@@ -947,6 +944,7 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
             "size": catalog.size_label(v),
             "qty": qty,
             "price_drop": int(catalog.drop_price(v, user.id) * qty),
+            "comment": order_pricing.sale_comment(it["unit_sale_price"], qty),
         })
     rows = orders.new_rows(items, **common)
     if not create_ttn:
@@ -1030,11 +1028,11 @@ async def _create_ttn(rows, data, user, to_door: bool):
         return False, "немає позицій"
 
     try:
-        shipment = shipment_boxes.build_shipment(items)
+        shipment = order_pricing.priced_shipment(items, order_pricing.line_values(rows))
     except shipment_boxes.PackagingError as exc:
         for row in rows:
             row["status"] = "ТТН НЕ створено"
-            row["comment"] = str(exc)
+            row["comment"] = order_pricing.keep_comment(row.get("comment"), str(exc))
         return False, str(exc)
     weight, volume, seats = shipment["weight"], shipment["volume"], shipment["seats"]
     for warning in shipment["warnings"]:
@@ -1064,7 +1062,7 @@ async def _create_ttn(rows, data, user, to_door: bool):
     except Exception as e:  # noqa: BLE001
         for row in rows:
             row["status"] = "ТТН НЕ створено"
-            row["comment"] = f"Помилка ТТН: {e}"
+            row["comment"] = order_pricing.keep_comment(row.get("comment"), f"Помилка ТТН: {e}")
         return False, str(e)
 
     # ТТН одна на замовлення, тож стоїть у кожному рядку позиції

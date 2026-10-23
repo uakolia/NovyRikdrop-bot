@@ -15,6 +15,7 @@ POST /weblium?secret=...   JSON-тіло, поля (будь-які з них):
 """
 import logging
 import shipment_boxes
+import order_pricing
 
 from aiohttp import web
 
@@ -85,7 +86,7 @@ async def handle_weblium(request: web.Request):
                 want = re.sub(r"\D", "", order["warehouse"])
                 match = [w for w in whs if want and str(w["number"]) == want]
                 if len(match) == 1:
-                    shipment = shipment_boxes.build_shipment([(item, qty)])
+                    shipment = order_pricing.priced_shipment([(item, qty)], [int(catalog.drop_price(item)*qty)])
                     res = await np.create_ttn(
                         recipient_city_ref=cities[0]["ref"],
                         recipient_warehouse_ref=match[0]["ref"],

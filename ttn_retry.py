@@ -16,6 +16,7 @@ import re
 import article_key
 import catalog
 import shipment_boxes
+import order_pricing
 
 log = logging.getLogger(__name__)
 
@@ -130,7 +131,7 @@ async def create_for_order(order_no: str, force: bool = False):
                          + ". Спробуйте /reload")
 
     try:
-        shipment = shipment_boxes.build_shipment(packaging_items)
+        shipment = order_pricing.priced_shipment(packaging_items, order_pricing.line_values(rows))
     except shipment_boxes.PackagingError as exc:
         raise RetryError(str(exc)) from exc
     weight, volume, seats = shipment["weight"], shipment["volume"], shipment["seats"]
@@ -138,9 +139,7 @@ async def create_for_order(order_no: str, force: bool = False):
         log.warning("Параметри упаковки: %s", warning)
 
     # страхова сума — ціна продажу клієнту (одна на замовлення), не дроп-ціна
-    sale = int(_num(head.get("sale_price")))
-    if sale:
-        cost = sale
+    cost = shipment["cost"]
     first = catalog.by_article(str(head.get("article") or ""))
     if len(rows) == 1:
         description = catalog.ttn_description(first,

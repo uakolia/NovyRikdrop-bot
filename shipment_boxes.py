@@ -62,3 +62,24 @@ def build_shipment(items):
     if not places:
         raise PackagingError("Немає коробок для створення ТТН")
     return {"options_seat": places, "seats": len(places), "weight": float(sum(Decimal(p["weight"]) for p in places)), "volume": float(sum(Decimal(p["volumetricVolume"]) for p in places)), "warnings": list(dict.fromkeys(warnings))}
+
+# Keep measured dimensions authoritative. T is m3, never physical kilograms.
+_dimensions_shipment = build_shipment
+
+def build_shipment(items):
+    if len(items) == 1:
+        item, qty = items[0]
+        volume = positive(item.get("volume_m3"))
+        if quantity(qty) == 1 and not str(item.get("box") or "").strip() and volume:
+            measured = positive(item.get("weight_kg"))
+            estimated = measured is None or bool(item.get("weight_estimated"))
+            weight = Decimal("10") if estimated else measured
+            warnings = ["Габарити відсутні: одне місце, резервний об'єм з прайсу (м3)"]
+            if estimated:
+                warnings.append("Фактична вага відсутня: оцінка 10 кг")
+            return {"options_seat": [{"weight": format(weight, "f"), "volumetricVolume": format(volume, "f")}],
+                    "weight": float(weight), "volume": float(volume), "seats": 1, "warnings": warnings}
+    return _dimensions_shipment(items)
+
+def place_count(items):
+    return build_shipment(items)["seats"]

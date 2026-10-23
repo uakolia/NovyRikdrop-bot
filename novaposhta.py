@@ -220,6 +220,13 @@ async def create_ttn(*, recipient_city_ref: str, recipient_warehouse_ref: str,
     """
     if not options_seat:
         raise NPError("Немає індивідуальних параметрів коробок; ТТН не створено")
+    if any("cost" in p for p in options_seat):
+        try:
+            values = [int(p["cost"]) for p in options_seat]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise NPError("Некоректна оголошена вартість місць") from exc
+        if any(v <= 0 for v in values) or sum(values) != int(cost):
+            raise NPError("Сума вартості місць не відповідає сумі замовлення")
     import np_store
     if not np_store.is_ready():
         raise NPError("відправника не налаштовано — адмін: команда /np_setup")
