@@ -2,7 +2,6 @@
 import re
 import math
 import unicodedata
-from decimal import Decimal
 
 PRICE_COLS = {
     'price_wholesale': ('ціна гурт',),
@@ -12,24 +11,18 @@ PRICE_COLS = {
     'price_retail_min': ('ціна роздріб',),
 }
 INFO_COLS = {
-    'article': ('article', 'артикул'),
-    'height': ('height', 'висота'),
-    'size': ('size',),
-    'diameter': ('diameter',),
-    'weight': ('weight', 'вага'),
+    'article': ('article', 'артикул'), 'height': ('height', 'висота'),
+    'size': ('size',), 'diameter': ('diameter',), 'weight': ('weight', 'вага'),
     'box': ('size box', 'розмір коробки'),
     'volume': ('packaging volume', "об'ємна вага", 'об’ємна вага', "об'єм упаковки", 'об’єм упаковки'),
-    'parts': ('number of parts', 'кількість частин'),
-    'stock': ('наявність',),
+    'parts': ('number of parts', 'кількість частин'), 'stock': ('наявність',),
 }
 
 def _norm(s):
-    s = unicodedata.normalize('NFKC', str(s or ''))
-    return re.sub(r'\s+', ' ', s).strip()
+    return re.sub(r'\s+', ' ', unicodedata.normalize('NFKC', str(s or ''))).strip()
 
 def _num(s):
-    s = _norm(s).replace('\xa0', ' ')
-    s = re.sub(r'[^\d,.\-]', '', s.replace(' ', ''))
+    s = re.sub(r'[^\d,.\-]', '', _norm(s).replace(' ', ''))
     if not s or s in {'-', '.', ','}:
         return None
     s = s.replace(',', '.')
@@ -40,6 +33,26 @@ def _num(s):
         return float(s)
     except ValueError:
         return None
+
+def _combine_header_rows(rows):
+    pending = None
+    for raw in rows:
+        cells = list(raw)
+        lowered = [_norm(c).lower() for c in cells]
+        prices = {i: cells[i] for i, value in enumerate(lowered)
+                  if any(value.startswith(key) for keys in PRICE_COLS.values() for key in keys)}
+        is_article = any(value in ('article', 'артикул') for value in lowered)
+        if is_article:
+            if pending and not any(value.startswith('ціна дроп 2') for value in lowered):
+                for i, value in pending.items():
+                    if i >= len(cells):
+                        cells.extend([''] * (i + 1 - len(cells)))
+                    if not _norm(cells[i]):
+                        cells[i] = value
+            pending = None
+        elif any(_norm(value).lower().startswith('ціна дроп 2') for value in prices.values()):
+            pending = prices
+        yield cells
 
 def _header_map(cells):
     lowered = [_norm(c).lower() for c in cells]
@@ -75,8 +88,7 @@ def _find_model_name(cells, colmap):
     return best
 
 def _ua_name(full):
-    parts = [p.strip() for p in full.split('/')]
-    for p in reversed(parts):
+    for p in reversed([p.strip() for p in full.split('/')]):
         if re.search(r'[А-Яа-яІіЇїЄєҐґ]', p):
             return tidy_name(p)
     return tidy_name(full)
@@ -87,9 +99,8 @@ _LATIN_TWINS = str.maketrans({'C': 'С', 'c': 'с', 'P': 'Р', 'p': 'р', 'A': '
 _FIXES = {'гірдянда': 'Гірлянда', 'гірлянда': 'Гірлянда', 'вінок': 'Віночок'}
 
 def _fix_latin(word):
-    has_cyr = bool(re.search(r'[А-Яа-яІіЇїЄєҐґ]', word))
-    has_lat = bool(re.search(r'[A-Za-z]', word))
-    if has_cyr and has_lat and not re.fullmatch(r'[A-Za-z]+', word):
+    if (re.search(r'[А-Яа-яІіЇїЄєҐґ]', word) and re.search(r'[A-Za-z]', word)
+            and not re.fullmatch(r'[A-Za-z]+', word)):
         return word.translate(_LATIN_TWINS)
     return word
 
@@ -111,7 +122,6 @@ def tidy_name(name):
     return n.strip()
 
 def _box_value(mapped, cells):
-    # Use the same strict dimension parser as TTN creation; never guess dimensions.
     from shipment_boxes import parse_boxes, PackagingError
     def valid(value):
         try:
@@ -125,11 +135,8 @@ def _box_value(mapped, cells):
     for raw in cells:
         value = _clean(raw).replace('\\', '')
         if valid(value):
-            key = tuple(parse_boxes(value))
-            candidates.setdefault(key, value)
-    if len(candidates) == 1:
-        return next(iter(candidates.values()))
-    return mapped
+            candidates.setdefault(tuple(parse_boxes(value)), value)
+    return next(iter(candidates.values())) if len(candidates) == 1 else mapped
 
 def parse_rows(rows):
     items = []
@@ -143,7 +150,7 @@ def parse_rows(rows):
             if not item.get(field):
                 item[field] = _num(cell(field))
         return item
-    for cells in rows:
+    for cells in _combine_header_rows(rows):
         cells = [str(c) if c is not None else '' for c in cells]
         hm = _header_map(cells)
         if hm:
@@ -172,15 +179,12 @@ def parse_rows(rows):
             continue
         if not current_model:
             continue
-        height = _num(cell('height'))
-        size_txt = cell('size') or cell('height')
-        weight = _num(cell('weight'))
-        volume = _num(cell('volume'))
         item = {
             'model': current_model, 'model_ua': _ua_name(current_model),
-            'article': article, 'height_m': height, 'size': size_txt,
-            'diameter_cm': _num(cell('diameter')), 'weight_kg': weight,
-            'volume_m3': volume, 'box': _box_value(cell('box'), cells),
+            'article': article, 'height_m': _num(cell('height')),
+            'size': cell('size') or cell('height'),
+            'diameter_cm': _num(cell('diameter')), 'weight_kg': _num(cell('weight')),
+            'volume_m3': _num(cell('volume')), 'box': _box_value(cell('box'), cells),
             'parts': _num(cell('parts')),
             'price_wholesale': _num(cell('price_wholesale')),
             'price_drop1': _num(cell('price_drop1')),
@@ -206,13 +210,11 @@ def parse_rows(rows):
     nouns = (('WR-', 'Віночок'), ('GR-', 'Гірлянда'), ('IK-', 'Ікебана'),
              ('WT-', 'Настінна ялинка'), ('GT-', 'Подарункова ялинка'))
     for it in result:
-        art = it['article'].upper()
         for pref, noun in nouns:
-            if art.startswith(pref):
+            if it['article'].upper().startswith(pref):
                 if not it['model_ua'].lower().startswith(noun.lower()):
                     it['model_ua'] = f"{noun} {it['model_ua']}"
                 break
-    for it in result:
         w = it.get('weight_kg')
         if w is None or not math.isfinite(w) or w <= 0:
             it['weight_kg'] = 10.0
