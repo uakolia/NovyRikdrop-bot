@@ -1,9 +1,13 @@
 """Розділ «Мої замовлення» (дані з Google Таблиці, локальний журнал — резерв)."""
+from html import escape
+
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 import aliases
+import delivery_view
 import keyboards as kb
 import orders
 import sheets_store
@@ -58,11 +62,12 @@ def _fmt_group(rows: list[dict], user_id: int | None = None) -> str:
         line = f"🌲 {_product_name(user_id, r)} — {r.get('size', '')}"
         if str(r.get("qty", "1")) not in ("", "1"):
             line += f" × {r['qty']}"
-        if r.get("ttn"):
-            line += (f"\n    📦 <code>{r['ttn']}</code>"
-                     f" · {r.get('np_status') or r.get('status') or ''}")
-        elif r.get("status"):
-            line += f"\n    {r['status']}"
+        ttn = delivery_view.ttn_text(r.get("ttn"))
+        if ttn:
+            line += f"\n    📦 <code>{escape(ttn)}</code>"
+        line += "\n    " + delivery_view.delivery_html(r)
+        if not ttn and r.get("status") and r["status"] != "нове":
+            line += f" · {escape(str(r['status']))}"
         lines.append(line)
     lines += [f"👤 {head_row.get('recipient_fio', '')} · "
               f"{head_row.get('recipient_phone', '')}",
@@ -74,6 +79,8 @@ def _fmt_group(rows: list[dict], user_id: int | None = None) -> str:
     if head_row.get("due_amount"):
         mark = "✅" if head_row.get("payment_proof") == "надіслано" else "⏳"
         lines.append(f"🏦 На рахунок: {head_row['due_amount']} грн {mark}")
+    if head_row.get("np_status") and head_row.get("updated_at"):
+        lines.append(f"🕒 Дані оновлено: {escape(str(head_row['updated_at']))}")
     return "\n".join(lines)
 
 
@@ -94,11 +101,16 @@ def _fmt(o: dict, user_id: int | None = None) -> str:
     if o.get("due_amount"):
         mark = "✅" if o.get("payment_proof") == "надіслано" else "⏳"
         lines.append(f"🏦 На рахунок: {o['due_amount']} грн {mark}")
-    if o.get("ttn"):
-        lines.append(f"📦 ТТН: <code>{o['ttn']}</code>\n"
-                     f"🔗 https://novaposhta.ua/tracking/?cargo_number={o['ttn']}")
-    elif o.get("status"):
-        lines.append(f"Статус: {o['status']}")
+    ttn = delivery_view.ttn_text(o.get("ttn"))
+    if ttn:
+        lines.append(f"📦 ТТН: <code>{escape(ttn)}</code>")
+        if ttn.isascii() and ttn.isdigit():
+            lines.append(f"🔗 https://novaposhta.ua/tracking/?cargo_number={ttn}")
+    lines.append(delivery_view.delivery_html(o))
+    if not ttn and o.get("status") and o["status"] != "нове":
+        lines.append(f"Стан замовлення: {escape(str(o['status']))}")
+    if o.get("np_status") and o.get("updated_at"):
+        lines.append(f"🕒 Дані оновлено: {escape(str(o['updated_at']))}")
     return "\n".join(lines)
 
 
@@ -122,6 +134,16 @@ async def _load_orders(user_id: int, limit: int = 10):
     return group_orders(rows)[:limit], err
 
 
+async def _edit_orders(cb: CallbackQuery, text: str):
+    """Repeated refresh with no content change is normal in Telegram."""
+    try:
+        await cb.message.edit_text(text[:4000], reply_markup=kb.my_orders_menu(),
+                                   disable_web_page_preview=True)
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
+
+
 @router.callback_query(F.data == "my:orders")
 async def cb_my_orders(cb: CallbackQuery):
     await cb.answer()
@@ -130,25 +152,26 @@ async def cb_my_orders(cb: CallbackQuery):
         text = "📋 <b>Мої замовлення</b>\n\nПоки що замовлень немає."
         if err:
             text += f"\n\n<i>⚠️ {err}</i>"
-        await cb.message.edit_text(text, reply_markup=kb.main_menu())
+        await _edit_orders(cb, text)
         return
     blocks = "\n\n".join(_fmt_group(g, cb.from_user.id) for g in rows)
     text = f"📋 <b>Мої замовлення</b> (останні {len(rows)})\n\n{blocks}"
     if err:
         text += ("\n\n<i>⚠️ Журнал у таблиці недоступний, показано локальні дані.\n"
                  f"{err}</i>")
-    await cb.message.edit_text(text[:4000], reply_markup=kb.main_menu(),
-                               disable_web_page_preview=True)
+    await _edit_orders(cb, text)
 
 
 @router.message(Command("myorders"))
 async def cmd_my_orders(msg: Message):
     rows, err = await _load_orders(msg.from_user.id)
     if not rows:
-        await msg.answer("Поки що замовлень немає." + (f"\n{err}" if err else ""))
+        await msg.answer("Поки що замовлень немає." + (f"\n{err}" if err else ""),
+                         reply_markup=kb.my_orders_menu())
         return
     blocks = "\n\n".join(_fmt_group(g, msg.from_user.id) for g in rows)
     await msg.answer(f"📋 <b>Мої замовлення</b>\n\n{blocks}"[:4000],
+                     reply_markup=kb.my_orders_menu(),
                      disable_web_page_preview=True)
 
 
