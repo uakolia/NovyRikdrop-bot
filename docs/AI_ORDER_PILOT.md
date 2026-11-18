@@ -10,7 +10,7 @@ which is SHA-checked by install_solution.py during Docker builds.
 - AI_ORDER_PILOT_IDS=260287389: explicitly allowed Telegram IDs only.
 - AI_ORDER_DRY_RUN=1: DEFAULT. The final confirmation creates no real
   Nova Poshta TTN, no Sheets row, no stock update, and no order.
-- AI_ORDER_MODEL=gpt-4.1-mini: Responses API model with structured JSON output.
+- AI_ORDER_MODEL=gpt-6-luna: OpenAI GPT-6 Luna supports Responses API Structured Outputs.
 
 AI_ORDER_ENABLED defaults to 0. An active Telegram account must also be
 approved in the original dropshipper access system. Setting
