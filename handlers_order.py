@@ -523,7 +523,7 @@ async def start_order(cb: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "order:cancel")
 async def cancel_order(cb: CallbackQuery, state: FSMContext):
     await state.clear()
-    await cb.message.edit_text("Замовлення скасовано.", reply_markup=kb.main_menu(user.id))
+    await cb.message.edit_text("Замовлення скасовано.", reply_markup=kb.main_menu(cb.from_user.id))
     await cb.answer()
 
 
@@ -1133,7 +1133,7 @@ async def _record_order(out, user, rows, address_line: str, proof_file_id,
     lines += ["", f"👤 {head['recipient_fio']}", address_line,
               f"💳 {head['payment']}"]
     await out.edit_text("\n".join(lines) + ttn_note + tail,
-                        reply_markup=kb.main_menu())
+                        reply_markup=kb.main_menu(user.id))
 
 # Register optional AI handlers as a child router. Do not edit main.py:
 # install_solution.py pins main.py's Git blob hash during Docker builds.
