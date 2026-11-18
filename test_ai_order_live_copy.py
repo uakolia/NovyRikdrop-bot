@@ -3,8 +3,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-import handlers_ai_order
 import handlers_order
+import handlers_ai_order
 
 
 class FormalCopyTests(unittest.TestCase):
