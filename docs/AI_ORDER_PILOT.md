@@ -7,14 +7,16 @@ which is SHA-checked by install_solution.py during Docker builds.
 
 - OPENAI_API_KEY: secret OpenAI key. Do not commit it.
 - AI_ORDER_ENABLED=1: enables the AI menu button and /ai.
-- AI_ORDER_PILOT_IDS=260287389: explicitly allowed approved Telegram IDs.
+- AI_ORDER_PILOT_IDS=260287389: explicitly allowed approved Telegram IDs when global access is disabled.
+- AI_ORDER_ALL_APPROVED=1: offer AI ordering to every approved dropshipper (and admins).
+  Keep AI_ORDER_DRY_RUN=1 while rolling out the interface; no real TTNs/orders.
 - ADMIN_IDS: all configured bot administrators also get AI pilot access automatically
   while AI_ORDER_ENABLED=1; they do not need to be added to AI_ORDER_PILOT_IDS.
 - AI_ORDER_DRY_RUN=1: DEFAULT. The final confirmation creates no real
   Nova Poshta TTN, no Sheets row, no stock update, and no order.
 - AI_ORDER_MODEL=gpt-6-luna: OpenAI GPT-6 Luna supports Responses API Structured Outputs.
 
-AI_ORDER_ENABLED defaults to 0. An active Telegram account must also be
+AI_ORDER_ENABLED and AI_ORDER_ALL_APPROVED both default to 0. An active Telegram account must also be
 approved in the original dropshipper access system. Setting
 AI_ORDER_DRY_RUN=0 is a separate production-release decision: the user then
 confirms a REAL order through the original existing order logic.
@@ -50,5 +52,5 @@ Run locally after pip install -r requirements.txt:
 python -m unittest -v test_ai_order_core.py test_ai_order_extract.py
 python -m compileall -q .
 
-A live Railway dry-run with the pilot Telegram account is still required
+A Railway dry-run with several approved dropshipper accounts is recommended
 before considering AI_ORDER_DRY_RUN=0.
