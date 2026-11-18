@@ -32,8 +32,12 @@ confirms a REAL order through the original existing order logic.
 5. Python checks stock and resolves actual city/warehouse references via
    the existing Nova Poshta search API.
 6. Existing order confirmation appears, with an AI edit button.
-7. In dry-run the confirmation ends without any write. In explicitly
-   approved real mode, normal confirmation/payment-proof/TTN steps run.
+7. In dry-run the confirmation ends without any write. In live mode
+   (`AI_ORDER_DRY_RUN=0`), the existing order handler checks stock and payment.
+   If no additional payment is due, confirmation calls the normal Nova Poshta
+   TTN creation flow. If payment is due, the bot requests proof; choosing
+   'Надішлю чек пізніше' saves an unpaid order without creating a TTN.
+   A failed Nova Poshta response is reported to an administrator.
 
 ## Constraints
 
@@ -54,3 +58,11 @@ python -m compileall -q .
 
 A Railway dry-run with several approved dropshipper accounts is recommended
 before considering AI_ORDER_DRY_RUN=0.
+
+## Ukrainian interface style
+
+- All AI prompts address customers using formal `Ви`.
+- Both `/ai` and the AI menu button show the same instructions.
+- Example model: `Українська Преміум`.
+- Customer-facing note: TTNs are created only after `Вашого підтвердження`
+  and completion of required payment steps.
