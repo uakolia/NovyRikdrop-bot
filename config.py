@@ -133,3 +133,11 @@ WEBLIUM_SECRET = os.getenv("WEBLIUM_SECRET", "")
 PORT = int(os.getenv("PORT", "8080"))
 
 DATA_DIR = os.getenv("DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
+
+# AI order intake is OFF by default; explicitly enable in Railway for a pilot.
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+AI_ORDER_MODEL = os.getenv("AI_ORDER_MODEL", "gpt-4.1-mini").strip() or "gpt-4.1-mini"
+AI_ORDER_ENABLED = os.getenv("AI_ORDER_ENABLED", "0").strip().lower() in ("1", "true", "yes")
+# Every authorized AI user must be explicitly allowlisted. Never turn this into
+# unrestricted access by accident when the environment variable is empty.
+AI_ORDER_PILOT_IDS = set(_ids(os.getenv("AI_ORDER_PILOT_IDS", "260287389")))
