@@ -7,7 +7,9 @@ which is SHA-checked by install_solution.py during Docker builds.
 
 - OPENAI_API_KEY: secret OpenAI key. Do not commit it.
 - AI_ORDER_ENABLED=1: enables the AI menu button and /ai.
-- AI_ORDER_PILOT_IDS=260287389: explicitly allowed Telegram IDs only.
+- AI_ORDER_PILOT_IDS=260287389: explicitly allowed approved Telegram IDs.
+- ADMIN_IDS: all configured bot administrators also get AI pilot access automatically
+  while AI_ORDER_ENABLED=1; they do not need to be added to AI_ORDER_PILOT_IDS.
 - AI_ORDER_DRY_RUN=1: DEFAULT. The final confirmation creates no real
   Nova Poshta TTN, no Sheets row, no stock update, and no order.
 - AI_ORDER_MODEL=gpt-6-luna: OpenAI GPT-6 Luna supports Responses API Structured Outputs.
