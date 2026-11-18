@@ -456,7 +456,7 @@ async def show_confirm(target, state: FSMContext):
                 f"{_address_line(data)}"
                 f"{tail}\n\n"
                 "Все вірно?",
-                reply_markup=(kb.ai_confirm_kb() if data.get("ai_draft")
+                reply_markup=(kb.ai_confirm_kb(config.AI_ORDER_DRY_RUN) if data.get("ai_draft")
                               else kb.confirm_kb()))
 
 
@@ -850,6 +850,17 @@ async def skip_flat(cb: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "confirm:yes", Order.confirm)
 async def confirm_order(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
+    if data.get("ai_draft") and config.AI_ORDER_DRY_RUN:
+        # Pilot: do not call _finalize, stock.reserve, Google Sheets, or Nova Poshta.
+        await state.clear()
+        await cb.answer("Тест пройдено: реальне замовлення не створено.")
+        await cb.message.answer(
+            "🧪 <b>AI-тест завершено</b>\n\n"
+            "Розпізнавання та перевірку даних пройдено. "
+            "Замовлення НЕ створювали, ТТН НЕ створювали, залишки НЕ змінювали.",
+            reply_markup=kb.main_menu(cb.from_user.id),
+        )
+        return
     cart = cart_of(data)
     short = await cart_shortage(cb.from_user.id, cart)
     if short:
