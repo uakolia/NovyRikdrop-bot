@@ -3,14 +3,17 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 import aliases
 import catalog
+import config
 import stock
 
 PER_PAGE = 8
 
 
-def main_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🌲 Нове замовлення", callback_data="order:new")],
+def main_menu(user_id: int | None = None):
+    rows = [[InlineKeyboardButton(text="🌲 Нове замовлення", callback_data="order:new")]]
+    if (config.AI_ORDER_ENABLED and user_id in config.AI_ORDER_PILOT_IDS):
+        rows.append([InlineKeyboardButton(text="✨ AI Замовлення (тест)", callback_data="ai:new")])
+    return InlineKeyboardMarkup(inline_keyboard=rows + [
         [InlineKeyboardButton(text="📋 Мої замовлення", callback_data="my:orders")],
         [InlineKeyboardButton(text="ℹ️ Допомога", callback_data="help")],
         [InlineKeyboardButton(text="✍️ Повідомити про проблему",
@@ -180,4 +183,12 @@ def my_order_detail_menu(page: int):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ До списку", callback_data=f"my:page:{page}")],
         [InlineKeyboardButton(text="🔄 Оновити список", callback_data=f"my:page:{page}")],
+    ])
+
+def ai_confirm_kb():
+    """Same existing confirmation, with an extra chance to correct AI parsing."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Підтвердити замовлення", callback_data="confirm:yes")],
+        [InlineKeyboardButton(text="✏️ Виправити через AI", callback_data="ai:edit")],
+        [InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
     ])
