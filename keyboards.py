@@ -148,3 +148,11 @@ def approve_kb(user_id: int):
         [InlineKeyboardButton(text="✅ Схвалити", callback_data=f"approve:{user_id}"),
          InlineKeyboardButton(text="🚫 Відхилити", callback_data=f"deny:{user_id}")],
     ])
+
+
+def my_orders_menu():
+    """Refresh reads Google Sheets; the existing background task polls NP."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Оновити список", callback_data="my:orders")],
+        *main_menu().inline_keyboard,
+    ])
