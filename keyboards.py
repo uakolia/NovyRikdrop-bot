@@ -2,6 +2,7 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 import aliases
+import ai_order_access
 import catalog
 import config
 import stock
@@ -11,7 +12,7 @@ PER_PAGE = 8
 
 def main_menu(user_id: int | None = None):
     rows = [[InlineKeyboardButton(text="🌲 Нове замовлення", callback_data="order:new")]]
-    if (config.AI_ORDER_ENABLED and user_id in config.AI_ORDER_PILOT_IDS):
+    if ai_order_access.allowed(user_id):
         rows.append([InlineKeyboardButton(text="✨ AI Замовлення (тест)", callback_data="ai:new")])
     return InlineKeyboardMarkup(inline_keyboard=rows + [
         [InlineKeyboardButton(text="📋 Мої замовлення", callback_data="my:orders")],
