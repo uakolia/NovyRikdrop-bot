@@ -21,6 +21,19 @@ import storage
 
 router = Router()
 
+# Shared text for both the AI button and the /ai command.
+AI_INTRO = (
+    "✨ <b>AI-замовлення</b>\n\n"
+    "Напишіть товар, розмір, кількість, ціну продажу за 1 шт., тип оплати, "
+    "ПІБ отримувача, телефон, місто та відділення Нової Пошти. "
+    "Ви можете надсилати дані кількома повідомленнями.\n\n"
+    "<b>Приклад:</b> <i>Українська Преміум, 2.3 м, 1 шт., "
+    "ціна продажу 8500 грн, післяплата. "
+    "Петренко Іван, 0671234567, Київ, відділення НП №45.</i>\n\n"
+    "AI допоможе підготувати замовлення. ТТН створюється тільки після "
+    "Вашого підтвердження та виконання умов оплати."
+)
+
 
 class AIOrder(StatesGroup):
     collect = State()
@@ -61,19 +74,12 @@ def catalog_entries(user_id):
 @router.callback_query(F.data == "ai:new")
 async def start_ai(cb: CallbackQuery, state: FSMContext):
     if not allowed(cb.from_user.id):
-        await cb.answer("AI-замовлення доступні лише адміністратору або тестовому акаунту", show_alert=True)
+        await cb.answer("AI-замовлення доступні лише схваленим користувачам", show_alert=True)
         return
     await state.clear()
     await state.set_state(AIOrder.collect)
     await cb.answer()
-    await send(cb,
-        "✨ <b>AI-замовлення (пілот)</b>\n\n"
-        "Напиши товар, розмір, кількість, ціну продажу за одиницю, тип оплати, "
-        "ПІБ, телефон, місто та відділення НП. Можна надсилати дані частинами.\n\n"
-        "Приклад: <i>Українська Люкс 2.3м, 1 шт, продаж 8500 грн, післяплата. "
-        "Петренко Іван, 0671234567, Київ, НП 45.</i>\n\n"
-        "AI тільки готує чернетку. ТТН створюється виключно після твого підтвердження.",
-        cancel_kb())
+    await send(cb, AI_INTRO, cancel_kb())
 
 
 @router.message(Command("ai"))
@@ -83,11 +89,7 @@ async def command_ai(msg: Message, state: FSMContext):
         return
     await state.clear()
     await state.set_state(AIOrder.collect)
-    await msg.answer(
-        "✨ <b>AI-замовлення</b>\nВведи замовлення українською. "
-        "Ціна продажу має бути вказана за кожну позицію. "
-        "Можна доповнювати повідомленнями.",
-        reply_markup=cancel_kb())
+    await msg.answer(AI_INTRO, reply_markup=cancel_kb())
 
 
 @router.callback_query(F.data == "ai:cancel")
@@ -105,7 +107,7 @@ async def edit_ai(cb: CallbackQuery, state: FSMContext):
         return
     await state.set_state(AIOrder.collect)
     await cb.answer()
-    await send(cb, "✏️ Напиши, що саме змінити. Інші дані залишаться в чернетці.",
+    await send(cb, "✏️ Напишіть, що саме потрібно змінити. Інші дані залишаться в чернетці.",
                cancel_kb())
 
 
@@ -138,24 +140,24 @@ async def validate(target, state):
     await stock.rows_for(uid)
     draft, issues = logic.plan(data.get("ai_draft") or {}, catalog_entries(uid))
     if issues:
-        await send(target, ("✨ <b>Уточни дані:</b>\n\n" +
+        await send(target, ("✨ <b>Уточніть дані:</b>\n\n" +
                            "\n".join("• " + escape(v) for v in issues[:12]) +
-                           "\n\nНапиши доповнення або виправлення.")[:3900], cancel_kb())
+                           "\n\nНапишіть доповнення або виправлення.")[:3900], cancel_kb())
         return
     shortage = await order.cart_shortage(uid, draft["cart"])
     if shortage:
         await send(target, stock.not_enough_text(shortage) +
-                   "\nНапиши іншу кількість або товар.", cancel_kb())
+                   "\nВкажіть іншу кількість або товар.", cancel_kb())
         return
     await state.update_data(ai_plan=draft)
     try:
         cities = await np.search_cities(draft["city_query"], limit=8)
     except np.NPError:
         await send(target, "⚠️ Не вдалося перевірити місто через Нову Пошту. "
-                   "Повтори повідомлення пізніше.", cancel_kb())
+                   "Повторіть повідомлення пізніше.", cancel_kb())
         return
     if not cities:
-        await send(target, "⚠️ Нова Пошта не знайшла місто. Уточни назву.", cancel_kb())
+        await send(target, "⚠️ Нова Пошта не знайшла місто. Уточніть назву.", cancel_kb())
         return
     name = draft["city_query"].casefold().removeprefix("м.").strip()
     exact = [c for c in cities if c["name"].casefold().removeprefix("м.").strip() == name]
@@ -170,7 +172,7 @@ async def validate(target, state):
             text=f"{c['name']} ({c.get('area', '')})"[:60], callback_data=f"ai:city:{i}")]
             for i, c in enumerate(cities)]
         buttons.append([InlineKeyboardButton(text="✖️ Скасувати", callback_data="ai:cancel")])
-        await send(target, "🏙 Уточни місто:", InlineKeyboardMarkup(inline_keyboard=buttons))
+        await send(target, "🏙 Уточніть місто:", InlineKeyboardMarkup(inline_keyboard=buttons))
 
 
 @router.callback_query(F.data.startswith("ai:city:"), AIOrder.choose_city)
@@ -191,7 +193,7 @@ async def find_warehouse(target, state, city):
         warehouses = await np.city_warehouses(city["ref"])
     except np.NPError:
         await state.set_state(AIOrder.collect)
-        await send(target, "⚠️ Нова Пошта не повернула відділення. Спробуй ще раз.",
+        await send(target, "⚠️ Нова Пошта не повернула відділення. Спробуйте ще раз.",
                    cancel_kb())
         return
     number = data["ai_plan"]["warehouse_number"]
@@ -200,7 +202,7 @@ async def find_warehouse(target, state, city):
     if not matches:
         await state.set_state(AIOrder.collect)
         await send(target, f"⚠️ В місті {escape(city['name'])} немає відділення "
-                   f"№{escape(number)}. Вкажи інший номер.", cancel_kb())
+                   f"№{escape(number)}. Вкажіть інший номер.", cancel_kb())
         return
     if len(matches) == 1:
         await to_confirmation(target, state, city, matches[0])
@@ -211,7 +213,7 @@ async def find_warehouse(target, state, city):
             text=w["name"][:55], callback_data=f"ai:wh:{i}")]
             for i, w in enumerate(matches[:8])]
         buttons.append([InlineKeyboardButton(text="✖️ Скасувати", callback_data="ai:cancel")])
-        await send(target, "🏢 Уточни відділення:",
+        await send(target, "🏢 Уточніть відділення:",
                    InlineKeyboardMarkup(inline_keyboard=buttons))
 
 
