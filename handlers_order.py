@@ -456,7 +456,8 @@ async def show_confirm(target, state: FSMContext):
                 f"{_address_line(data)}"
                 f"{tail}\n\n"
                 "Все вірно?",
-                reply_markup=kb.confirm_kb())
+                reply_markup=(kb.ai_confirm_kb() if data.get("ai_draft")
+                              else kb.confirm_kb()))
 
 
 async def show_payment_proof(target, state: FSMContext):
@@ -522,7 +523,7 @@ async def start_order(cb: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "order:cancel")
 async def cancel_order(cb: CallbackQuery, state: FSMContext):
     await state.clear()
-    await cb.message.edit_text("Замовлення скасовано.", reply_markup=kb.main_menu())
+    await cb.message.edit_text("Замовлення скасовано.", reply_markup=kb.main_menu(user.id))
     await cb.answer()
 
 
@@ -1133,3 +1134,8 @@ async def _record_order(out, user, rows, address_line: str, proof_file_id,
               f"💳 {head['payment']}"]
     await out.edit_text("\n".join(lines) + ttn_note + tail,
                         reply_markup=kb.main_menu())
+
+# Register optional AI handlers as a child router. Do not edit main.py:
+# install_solution.py pins main.py's Git blob hash during Docker builds.
+from handlers_ai_order import router as ai_order_router
+router.include_router(ai_order_router)
