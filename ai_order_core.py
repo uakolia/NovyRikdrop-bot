@@ -108,7 +108,7 @@ def plan(draft, entries):
     errors, cart = [], []
     items = draft.get("items") or []
     if not isinstance(items, list) or not items:
-        errors.append("Яку ялинку / товар потрібно замовити, висота і кількість?")
+        errors.append("Вкажіть товар, розмір і кількість.")
     elif len(items) > 6:
         errors.append("Максимум 6 різних позицій в одному AI-замовленні.")
     else:
