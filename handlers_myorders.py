@@ -8,6 +8,7 @@ from aiogram.types import CallbackQuery, Message
 
 import aliases
 import delivery_view
+import demo_order_rows
 import keyboards as kb
 import orders
 import order_pagination
@@ -138,15 +139,23 @@ async def _load_page(user_id: int, page: int):
     await stock.rows_for(user_id)
 
     async def fetch(limit: int):
+        # Read-only demos are visible only to the designated account.
+        # They NEVER enter Sheets, the order journal, NP, or stock tracking.
+        demo = demo_order_rows.for_user(user_id)
+        real_limit = max(0, limit - len(demo))
+        if real_limit == 0:
+            return demo[:limit], None
         if sheets_store.enabled():
-            rows, err = await sheets_store.fetch_orders(user_id, limit)
+            rows, err = await sheets_store.fetch_orders(user_id, real_limit)
             if rows is not None:
-                return rows, err
-            local = orders.list_for_user(user_id, limit)
+                return (demo + rows)[:limit], err
+            local = orders.list_for_user(user_id, real_limit)
             if local:
-                return local, "Журнал у таблиці недоступний; показано локальні дані."
+                return (demo + local)[:limit], "Журнал у таблиці недоступний; показано локальні дані."
+            if demo:
+                return demo[:limit], "Журнал у таблиці недоступний; реальні замовлення не показано."
             return None, err
-        return orders.list_for_user(user_id, limit), None
+        return (demo + orders.list_for_user(user_id, real_limit))[:limit], None
 
     return await order_pagination.load_page(fetch, page)
 
