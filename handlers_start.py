@@ -34,7 +34,7 @@ HELP = (
 async def cmd_start(msg: Message):
     user = msg.from_user
     if storage.is_approved(user.id):
-        await msg.answer(WELCOME, reply_markup=kb.main_menu())
+        await msg.answer(WELCOME, reply_markup=kb.main_menu(user.id))
         return
     storage.add_pending(user.id, user.full_name, user.username or "")
     await msg.answer(

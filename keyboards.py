@@ -2,15 +2,19 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 import aliases
+import ai_order_access
 import catalog
+import config
 import stock
 
 PER_PAGE = 8
 
 
-def main_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🌲 Нове замовлення", callback_data="order:new")],
+def main_menu(user_id: int | None = None):
+    rows = [[InlineKeyboardButton(text="🌲 Нове замовлення", callback_data="order:new")]]
+    if ai_order_access.allowed(user_id):
+        rows.append([InlineKeyboardButton(text="✨ AI Замовлення (тест)", callback_data="ai:new")])
+    return InlineKeyboardMarkup(inline_keyboard=rows + [
         [InlineKeyboardButton(text="📋 Мої замовлення", callback_data="my:orders")],
         [InlineKeyboardButton(text="ℹ️ Допомога", callback_data="help")],
         [InlineKeyboardButton(text="✍️ Повідомити про проблему",
@@ -180,4 +184,14 @@ def my_order_detail_menu(page: int):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ До списку", callback_data=f"my:page:{page}")],
         [InlineKeyboardButton(text="🔄 Оновити список", callback_data=f"my:page:{page}")],
+    ])
+
+def ai_confirm_kb(dry_run: bool = True):
+    """Pilot confirmation is explicitly labelled and can never silently ship."""
+    label = ("🧪 Перевірити тест (без ТТН)" if dry_run
+             else "✅ Підтвердити реальне замовлення")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=label, callback_data="confirm:yes")],
+        [InlineKeyboardButton(text="✏️ Виправити через AI", callback_data="ai:edit")],
+        [InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
     ])
