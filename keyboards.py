@@ -185,10 +185,12 @@ def my_order_detail_menu(page: int):
         [InlineKeyboardButton(text="🔄 Оновити список", callback_data=f"my:page:{page}")],
     ])
 
-def ai_confirm_kb():
-    """Same existing confirmation, with an extra chance to correct AI parsing."""
+def ai_confirm_kb(dry_run: bool = True):
+    """Pilot confirmation is explicitly labelled and can never silently ship."""
+    label = ("🧪 Перевірити тест (без ТТН)" if dry_run
+             else "✅ Підтвердити реальне замовлення")
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Підтвердити замовлення", callback_data="confirm:yes")],
+        [InlineKeyboardButton(text=label, callback_data="confirm:yes")],
         [InlineKeyboardButton(text="✏️ Виправити через AI", callback_data="ai:edit")],
         [InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")],
     ])
