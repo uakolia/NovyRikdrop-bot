@@ -150,9 +150,34 @@ def approve_kb(user_id: int):
     ])
 
 
-def my_orders_menu():
-    """Refresh reads Google Sheets; the existing background task polls NP."""
+def my_orders_menu(page: int = 0, has_next: bool = False,
+                   choices: list[tuple[int, str, str]] | None = None):
+    """Ten order-detail buttons and navigation; refresh reads saved Sheets data."""
+    rows = []
+    for index, order_no, token in (choices or []):
+        number = str(order_no or "без номера").replace("\n", " ").strip()[:30]
+        rows.append([InlineKeyboardButton(
+            text=f"🔎 №{number} · Деталі",
+            callback_data=f"my:detail:{page}:{index}:{token}",
+        )])
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(
+            text="⬅️ Назад", callback_data=f"my:page:{page - 1}"))
+    if has_next:
+        nav.append(InlineKeyboardButton(
+            text="Далі ➡️", callback_data=f"my:page:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([InlineKeyboardButton(
+        text="🔄 Оновити список", callback_data=f"my:page:{page}")])
+    rows.append([InlineKeyboardButton(
+        text="🌲 Нове замовлення", callback_data="order:new")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def my_order_detail_menu(page: int):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Оновити список", callback_data="my:orders")],
-        *main_menu().inline_keyboard,
+        [InlineKeyboardButton(text="⬅️ До списку", callback_data=f"my:page:{page}")],
+        [InlineKeyboardButton(text="🔄 Оновити список", callback_data=f"my:page:{page}")],
     ])
