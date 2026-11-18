@@ -13,7 +13,8 @@ PER_PAGE = 8
 def main_menu(user_id: int | None = None):
     rows = [[InlineKeyboardButton(text="🌲 Нове замовлення", callback_data="order:new")]]
     if ai_order_access.allowed(user_id):
-        rows.append([InlineKeyboardButton(text="✨ AI Замовлення (тест)", callback_data="ai:new")])
+        label = "✨ AI Замовлення (тест)" if config.AI_ORDER_DRY_RUN else "✨ AI Замовлення"
+        rows.append([InlineKeyboardButton(text=label, callback_data="ai:new")])
     return InlineKeyboardMarkup(inline_keyboard=rows + [
         [InlineKeyboardButton(text="📋 Мої замовлення", callback_data="my:orders")],
         [InlineKeyboardButton(text="ℹ️ Допомога", callback_data="help")],
