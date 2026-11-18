@@ -26,7 +26,7 @@ jobs:
       - name: Verify syntax
         run: python -m compileall -q .
       - name: Run AI extraction and validation tests
-        run: python -m unittest -v test_ai_order_core.py test_ai_order_extract.py test_ai_order_access.py
+        run: python -m unittest -v test_ai_order_core.py test_ai_order_extract.py test_ai_order_access.py test_ai_order_live_copy.py
       - name: Verify Telegram routers import together
         run: python -c "import handlers_order; import handlers_ai_order; import keyboards; print('AI routes load')"
       - name: Check existing Docker installer compatibility
