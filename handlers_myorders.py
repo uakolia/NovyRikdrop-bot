@@ -12,6 +12,7 @@ import demo_order_rows
 import keyboards as kb
 import orders
 import order_pagination
+import order_display
 import sheets_store
 import storage
 
@@ -61,7 +62,8 @@ def _fmt_group(rows: list[dict], user_id: int | None = None) -> str:
     lines = [f"{icon} <b>№{head_row.get('order_no', '?')}</b> · "
              f"{head_row.get('created_at', '')} · {len(rows)} позиції"]
     for r in rows:
-        line = f"🌲 {_product_name(user_id, r)} — {r.get('size', '')}"
+        line = "🌲 " + escape(order_display.product_with_height(
+            _product_name(user_id, r), r.get("size", "")))
         if str(r.get("qty", "1")) not in ("", "1"):
             line += f" × {r['qty']}"
         ttn = delivery_view.ttn_text(r.get("ttn"))
@@ -90,7 +92,7 @@ def _fmt(o: dict, user_id: int | None = None) -> str:
     icon = STATUS_ICON.get(str(o.get("status", "")).strip(), "•")
     name = _product_name(user_id, o)
     head = (f"{icon} <b>№{o.get('order_no', '?')}</b> · {o.get('created_at', '')}\n"
-            f"🌲 {name} — {o.get('size', '')}")
+            f"🌲 {escape(order_display.product_with_height(name, o.get('size', '')))}")
     if str(o.get("qty", "1")) not in ("", "1"):
         head += f" × {o['qty']}"
     lines = [head,
@@ -122,9 +124,8 @@ def _summary(group: list[dict], user_id: int) -> str:
     no = escape(str(first.get("order_no") or "?")[:35])
     date = escape(str(first.get("created_at") or "")[:16])
     if len(group) == 1:
-        product = escape(_product_name(user_id, first)[:65])
-        size = escape(str(first.get("size") or "")[:20])
-        item = f"{product} {size}".strip()
+        item = escape(order_display.product_with_height(
+            _product_name(user_id, first), first.get("size", ""))[:90])
         status = delivery_view.delivery_label(first)
     else:
         item = f"{len(group)} позиції"
