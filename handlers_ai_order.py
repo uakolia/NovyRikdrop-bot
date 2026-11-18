@@ -8,6 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import ai_order_core as logic
+import ai_order_access
 import ai_order_extract as extract
 import aliases
 import catalog
@@ -28,8 +29,7 @@ class AIOrder(StatesGroup):
 
 
 def allowed(uid: int) -> bool:
-    return bool(config.AI_ORDER_ENABLED and storage.is_approved(uid)
-                and uid in config.AI_ORDER_PILOT_IDS)
+    return ai_order_access.allowed(uid)
 
 
 def cancel_kb():
@@ -61,7 +61,7 @@ def catalog_entries(user_id):
 @router.callback_query(F.data == "ai:new")
 async def start_ai(cb: CallbackQuery, state: FSMContext):
     if not allowed(cb.from_user.id):
-        await cb.answer("AI-замовлення доступні тільки тестовому акаунту", show_alert=True)
+        await cb.answer("AI-замовлення доступні лише адміністратору або тестовому акаунту", show_alert=True)
         return
     await state.clear()
     await state.set_state(AIOrder.collect)
