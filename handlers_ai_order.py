@@ -25,7 +25,7 @@ router = Router()
 AI_INTRO = (
     "✨ <b>AI-замовлення</b>\n\n"
     "Напишіть товар, розмір, кількість, ціну продажу за 1 шт., тип оплати, "
-    "ПІБ отримувача, телефон, місто та відділення Нової Пошти. "
+    "ПІБ отримувача, телефон, населений пункт та відділення Нової Пошти. "
     "Ви можете надсилати дані кількома повідомленнями.\n\n"
     "<b>Приклад:</b> <i>Українська Преміум, 2.3 м, 1 шт., "
     "ціна продажу 8500 грн, післяплата. "
@@ -244,7 +244,7 @@ async def find_warehouse(target, state, city):
                if logic.normalize_warehouse(w.get("number")) == number]
     if not matches:
         await state.set_state(AIOrder.collect)
-        await send(target, f"⚠️ В місті {escape(city['name'])} немає відділення "
+        await send(target, f"⚠️ У населеному пункті {escape(city.get('label', city['name']))} немає відділення "
                    f"№{escape(number)}. Вкажіть інший номер.", cancel_kb())
         return
     if len(matches) == 1:
