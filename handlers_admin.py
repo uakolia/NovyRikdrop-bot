@@ -355,7 +355,7 @@ async def np_phone(msg: Message, state: FSMContext):
         return
     np_store.save(phone=phone)
     await state.set_state(NPSetup.city)
-    await msg.answer("🏙 Введіть <b>місто, з якого відправляєте</b>:")
+    await msg.answer("🏙 Введіть <b>населений пункт, з якого відправляєте</b>:")
 
 
 @router.message(NPSetup.city, F.text)
@@ -451,11 +451,11 @@ async def np_city_pick(cb: CallbackQuery, state: FSMContext):
         await cb.message.edit_text(f"⚠️ Помилка НП: {e}")
         await cb.answer()
         return
-    np_store.save(city_ref=city["ref"], city_name=city["name"])
+    np_store.save(city_ref=city["ref"], city_name=city.get("label", city["name"]))
     await state.update_data(whs=whs)
     await state.set_state(NPSetup.wh_pick)
     await cb.message.edit_text(
-        f"📍 {city['name']} — оберіть <b>відділення, з якого відправляєте</b>:",
+        f"📍 {city.get('label', city['name'])} — оберіть <b>відділення, з якого відправляєте</b>:",
         reply_markup=_wh_kb(whs, 0))
     await cb.answer()
 
