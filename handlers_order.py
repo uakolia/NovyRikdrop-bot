@@ -325,7 +325,7 @@ async def show_delivery(target, state: FSMContext):
                                   callback_data="dlv:warehouse")],
             [InlineKeyboardButton(text="🚚 Адресна доставка (курʼєром)",
                                   callback_data="dlv:door")]]
-    await _send(target, f"📍 Місто: <b>{data['city']['name']}</b>\n\n"
+    await _send(target, f"📍 Населений пункт: <b>{data['city'].get('label', data['city']['name'])}</b>\n\n"
                         "Куди доставити?",
                 reply_markup=_back_kb("delivery", rows))
 
@@ -334,7 +334,7 @@ async def show_warehouse(target, state: FSMContext, page: int = 0):
     data = await state.get_data()
     await state.set_state(Order.warehouse)
     await _send(target,
-                f"📍 <b>{data['city']['name']}</b> — оберіть відділення:\n\n"
+                f"📍 <b>{data['city'].get('label', data['city']['name'])}</b> — оберіть відділення:\n\n"
                 "🏗 <b>вантажне</b> — приймає понад 30 кг\n"
                 "🏢 звичайне — у підписі видно ліміт ваги\n\n"
                 "⚠️ <i>Більшість ялинок має йти саме на вантажне: у звичайному "
@@ -348,7 +348,7 @@ async def show_warehouse(target, state: FSMContext, page: int = 0):
 async def show_street(target, state: FSMContext):
     data = await state.get_data()
     await state.set_state(Order.street)
-    await _send(target, f"🚚 Адресна доставка, {data['city']['name']}\n\n"
+    await _send(target, f"🚚 Адресна доставка, {data['city'].get('label', data['city']['name'])}\n\n"
                         "Введіть <b>назву вулиці</b> (наприклад: <i>Шевченка</i>)",
                 reply_markup=_back_kb("street"))
 
@@ -394,8 +394,8 @@ def _address_line(data) -> str:
         addr = f"{data['street']['name']}, {data['building']}"
         if data.get("flat"):
             addr += f", кв. {data['flat']}"
-        return f"🚚 Курʼєром: {data['city']['name']}, {addr}"
-    return f"🏢 {data['city']['name']}, {data['warehouse']['name']}"
+        return f"🚚 Курʼєром: {data['city'].get('label', data['city']['name'])}, {addr}"
+    return f"🏢 {data['city'].get('label', data['city']['name'])}, {data['warehouse']['name']}"
 
 
 def _not_enough_text(left: int, qty: int, in_cart: int = 0) -> str:
@@ -792,7 +792,7 @@ async def pick_delivery_warehouse(cb: CallbackQuery, state: FSMContext):
     if not whs:
         await state.update_data(warehouses=[])
         await cb.message.edit_text(
-            f"⚠️ У місті <b>{city['name']}</b> Нова Пошта не показала жодного "
+            f"⚠️ У населеному пункті <b>{city.get('label', city['name'])}</b> Нова Пошта не показала жодного "
             "відділення (лише поштомати, яких нам не підходять).\n\n"
             "Оберіть адресну доставку або інше місто:",
             reply_markup=_back_kb("warehouse", [[InlineKeyboardButton(
@@ -983,7 +983,7 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
         cod_amount=data.get("cod_amount") or "",
         recipient_fio=data["fio"],
         recipient_phone=data["phone"],
-        city=data["city"]["name"],
+        city=data["city"].get("label", data["city"]["name"]),
         warehouse=(_address_line(data).split(": ", 1)[-1] if to_door
                    else data["warehouse"]["name"]),
         delivery=("адресна доставка" if to_door else "відділення"),
