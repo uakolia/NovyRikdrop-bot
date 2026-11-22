@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 import novaposhta as np
+import handlers_order  # imports AI router at the end; required by existing bot layout
 import handlers_admin
 import handlers_ai_order
 
