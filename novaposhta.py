@@ -66,19 +66,82 @@ async def _call(model, method, props, api_key: str | None = None):
     return data["data"]
 
 
-async def search_cities(query: str, limit: int = 8):
-    """Пошук міст за назвою. Повертає [{Ref, Description, AreaDescription}]"""
-    data = await _call("Address", "getCities",
-                       {"FindByString": query.strip(), "Limit": str(limit)})
-    return [{"ref": c["Ref"], "name": c["Description"],
-             "area": c.get("AreaDescription", "")} for c in data]
+CITY_SEARCH_PAGE_SIZE = 8
+
+
+async def search_city_page(query: str, page: int = 1,
+                           limit: int = CITY_SEARCH_PAGE_SIZE) -> dict:
+    """Пошук ВСІХ населених пунктів НП (міста, села, селища) із пагінацією.
+
+    searchSettlements повертає індивідуальний населений пункт у SettlementRef,
+    але для CityRecipient / getWarehouses потрібен саме DeliveryCity.
+    """
+    query = (query or "").strip()
+    page = max(1, int(page))
+    limit = max(1, min(int(limit), 50))
+    if len(query) < 2:
+        return {"cities": [], "page": page, "total": 0, "has_next": False}
+
+    data = await _call("Address", "searchSettlements",
+                       {"CityName": query, "Page": str(page), "Limit": str(limit)})
+    result = (data[0] if isinstance(data, list) and data
+              else data if isinstance(data, dict) else {})
+    addresses = result.get("Addresses") or []
+    cities = []
+    for place in addresses:
+        city_ref = place.get("DeliveryCity")
+        name = (place.get("MainDescription") or "").strip()
+        if not city_ref or not name:
+            # Немає реального адресата для ТТН / відділень.
+            continue
+        area = (place.get("Area") or "").strip()
+        region = (place.get("Region") or "").strip()
+        label = (place.get("Present") or "").strip()
+        if not label:
+            label = ", ".join(p for p in (
+                (place.get("SettlementTypeCode") or "") + " " + name,
+                region + " р-н" if region else "",
+                area + " обл." if area else "",
+            ) if p.strip())
+        cities.append({
+            "ref": city_ref, "name": name, "label": label,
+            "area": area, "region": region,
+            "settlement_ref": place.get("SettlementRef") or place.get("Ref") or "",
+        })
+    try:
+        total = int(result.get("TotalCount") or 0)
+    except (TypeError, ValueError):
+        total = 0
+    return {
+        "cities": cities, "page": page, "total": total,
+        "has_next": (page * limit < total if total else len(addresses) == limit),
+    }
+
+
+async def search_cities(query: str, limit: int = CITY_SEARCH_PAGE_SIZE):
+    """Сумісність зі старими викликами; для всіх результатів використовуйте page."""
+    return (await search_city_page(query, limit=limit))["cities"]
+
+
+async def _get_warehouses(city_ref: str, api_key: str | None = None):
+    """НП може повертати лише перші 500 відділень, тому читаємо всі сторінки."""
+    found, seen = [], set()
+    for page in range(1, 101):
+        rows = await _call("Address", "getWarehouses",
+                           {"CityRef": city_ref, "Page": str(page), "Limit": "500"},
+                           api_key=api_key)
+        fresh = [w for w in rows if w.get("Ref") and w["Ref"] not in seen]
+        found.extend(fresh)
+        seen.update(w["Ref"] for w in fresh)
+        if len(rows) < 500 or not fresh:
+            return found
+    raise NPError("Нова Пошта повернула понад 50 000 відділень: уточніть місто")
 
 
 async def cargo_warehouses(city_ref: str, min_weight: float | None = None):
     """Вантажні відділення міста (приймають > min_weight кг)."""
     min_w = min_weight if min_weight is not None else config.NP_MIN_WAREHOUSE_WEIGHT
-    data = await _call("Address", "getWarehouses",
-                       {"CityRef": city_ref, "Limit": "500"})
+    data = await _get_warehouses(city_ref)
     def _f(v):
         try:
             return float(v or 0)
@@ -181,8 +244,7 @@ async def get_sender_info(api_key: str):
 
 async def all_warehouses(city_ref: str, api_key: str | None = None):
     """Всі відділення міста (для вибору звідки відправляєте)."""
-    data = await _call("Address", "getWarehouses",
-                       {"CityRef": city_ref, "Limit": "500"}, api_key=api_key)
+    data = await _get_warehouses(city_ref, api_key=api_key)
     return [{"ref": w["Ref"], "name": w.get("Description", ""),
              "number": w.get("Number", "")}
             for w in data if w.get("TypeOfWarehouse") != TYPE_POSTOMAT]

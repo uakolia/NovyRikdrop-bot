@@ -291,18 +291,31 @@ async def show_phone(target, state: FSMContext):
 
 async def show_city(target, state: FSMContext):
     await state.set_state(Order.city)
-    await _send(target, "🏙 Введіть <b>місто отримувача</b> "
-                        "(наприклад: <i>Львів</i>)",
+    await _send(target, "🏙 Введіть <b>населений пункт отримувача</b> "
+                        "(місто, село або селище; наприклад: <i>Новоселиця</i>)",
                 reply_markup=_back_kb("city"))
 
 
 async def show_city_pick(target, state: FSMContext):
     data = await state.get_data()
     await state.set_state(Order.city_pick)
-    rows = [[InlineKeyboardButton(text=f"{c['name']} ({c['area']} обл.)",
-                                  callback_data=f"city:{i}")]
+    rows = [[InlineKeyboardButton(text=c["label"][:90],
+                                  callback_data=f"city:{data['city_page']}:{i}")]
             for i, c in enumerate(data["cities"])]
-    await _send(target, "Оберіть місто:", reply_markup=_back_kb("city_pick", rows))
+    nav = []
+    if data["city_page"] > 1:
+        nav.append(InlineKeyboardButton(text="⬅️ Попередні",
+                                       callback_data=f"cityp:{data['city_page'] - 1}"))
+    if data.get("city_has_next"):
+        nav.append(InlineKeyboardButton(text="Наступні ➡️",
+                                       callback_data=f"cityp:{data['city_page'] + 1}"))
+    if nav:
+        rows.append(nav)
+    page_info = f" (сторінка {data['city_page']})"
+    if data.get("city_total"):
+        page_info += f", всього {data['city_total']}"
+    await _send(target, f"Оберіть населений пункт{page_info}:",
+                reply_markup=_back_kb("city_pick", rows))
 
 
 async def show_delivery(target, state: FSMContext):
@@ -312,7 +325,7 @@ async def show_delivery(target, state: FSMContext):
                                   callback_data="dlv:warehouse")],
             [InlineKeyboardButton(text="🚚 Адресна доставка (курʼєром)",
                                   callback_data="dlv:door")]]
-    await _send(target, f"📍 Місто: <b>{data['city']['name']}</b>\n\n"
+    await _send(target, f"📍 Населений пункт: <b>{data['city'].get('label', data['city']['name'])}</b>\n\n"
                         "Куди доставити?",
                 reply_markup=_back_kb("delivery", rows))
 
@@ -321,7 +334,7 @@ async def show_warehouse(target, state: FSMContext, page: int = 0):
     data = await state.get_data()
     await state.set_state(Order.warehouse)
     await _send(target,
-                f"📍 <b>{data['city']['name']}</b> — оберіть відділення:\n\n"
+                f"📍 <b>{data['city'].get('label', data['city']['name'])}</b> — оберіть відділення:\n\n"
                 "🏗 <b>вантажне</b> — приймає понад 30 кг\n"
                 "🏢 звичайне — у підписі видно ліміт ваги\n\n"
                 "⚠️ <i>Більшість ялинок має йти саме на вантажне: у звичайному "
@@ -335,7 +348,7 @@ async def show_warehouse(target, state: FSMContext, page: int = 0):
 async def show_street(target, state: FSMContext):
     data = await state.get_data()
     await state.set_state(Order.street)
-    await _send(target, f"🚚 Адресна доставка, {data['city']['name']}\n\n"
+    await _send(target, f"🚚 Адресна доставка, {data['city'].get('label', data['city']['name'])}\n\n"
                         "Введіть <b>назву вулиці</b> (наприклад: <i>Шевченка</i>)",
                 reply_markup=_back_kb("street"))
 
@@ -381,8 +394,8 @@ def _address_line(data) -> str:
         addr = f"{data['street']['name']}, {data['building']}"
         if data.get("flat"):
             addr += f", кв. {data['flat']}"
-        return f"🚚 Курʼєром: {data['city']['name']}, {addr}"
-    return f"🏢 {data['city']['name']}, {data['warehouse']['name']}"
+        return f"🚚 Курʼєром: {data['city'].get('label', data['city']['name'])}, {addr}"
+    return f"🏢 {data['city'].get('label', data['city']['name'])}, {data['warehouse']['name']}"
 
 
 def _not_enough_text(left: int, qty: int, in_cart: int = 0) -> str:
@@ -709,26 +722,59 @@ async def input_phone(msg: Message, state: FSMContext):
 async def input_city(msg: Message, state: FSMContext):
     q = msg.text.strip()
     if len(q) < 2:
-        await msg.answer("⚠️ Введіть назву міста:", reply_markup=_back_kb("city"))
+        await msg.answer("⚠️ Введіть назву населеного пункту:", reply_markup=_back_kb("city"))
         return
     try:
-        cities = await np.search_cities(q)
+        found = await np.search_city_page(q)
     except np.NPError as e:
         await msg.answer(f"⚠️ Помилка Нової Пошти: {e}\nСпробуйте ще раз:",
                          reply_markup=_back_kb("city"))
         return
-    if not cities:
-        await msg.answer("⚠️ Міст не знайдено. Перевірте назву:",
+    if not found["cities"]:
+        await msg.answer("⚠️ Населених пунктів не знайдено. Перевірте назву:",
                          reply_markup=_back_kb("city"))
         return
-    await state.update_data(cities=cities)
+    await state.update_data(cities=found["cities"], city_query=q,
+                            city_page=1, city_total=found["total"],
+                            city_has_next=found["has_next"])
     await show_city_pick(msg, state)
+
+
+@router.callback_query(F.data.startswith("cityp:"), Order.city_pick)
+async def cities_page(cb: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    page = int(cb.data.split(":")[1])
+    if page < 1 or page > data["city_page"] + 1 or (
+            page > data["city_page"] and not data.get("city_has_next")):
+        await cb.answer("Сторінка недоступна", show_alert=True)
+        return
+    try:
+        found = await np.search_city_page(data["city_query"], page=page)
+    except np.NPError as e:
+        await cb.answer(f"Помилка Нової Пошти: {e}"[:180], show_alert=True)
+        return
+    if not found["cities"]:
+        await cb.answer("Більше населених пунктів немає", show_alert=True)
+        return
+    await state.update_data(cities=found["cities"], city_page=page,
+                            city_total=found["total"],
+                            city_has_next=found["has_next"])
+    await show_city_pick(cb, state)
+    await cb.answer()
 
 
 @router.callback_query(F.data.startswith("city:"), Order.city_pick)
 async def pick_city(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    await state.update_data(city=data["cities"][int(cb.data.split(":")[1])])
+    try:
+        _, page, index = cb.data.split(":")
+        if int(page) != data["city_page"]:
+            raise ValueError("stale city selection")
+        city = data["cities"][int(index)]
+    except (ValueError, IndexError, KeyError):
+        await cb.answer("Сторінку змінено. Оберіть пункт ще раз.", show_alert=True)
+        return
+    await state.update_data(city=city)
     await show_delivery(cb, state)
     await cb.answer()
 
@@ -746,7 +792,7 @@ async def pick_delivery_warehouse(cb: CallbackQuery, state: FSMContext):
     if not whs:
         await state.update_data(warehouses=[])
         await cb.message.edit_text(
-            f"⚠️ У місті <b>{city['name']}</b> Нова Пошта не показала жодного "
+            f"⚠️ У населеному пункті <b>{city.get('label', city['name'])}</b> Нова Пошта не показала жодного "
             "відділення (лише поштомати, яких нам не підходять).\n\n"
             "Оберіть адресну доставку або інше місто:",
             reply_markup=_back_kb("warehouse", [[InlineKeyboardButton(
@@ -937,7 +983,7 @@ async def _finalize_inner(target, state: FSMContext, *, proof_file_id,
         cod_amount=data.get("cod_amount") or "",
         recipient_fio=data["fio"],
         recipient_phone=data["phone"],
-        city=data["city"]["name"],
+        city=data["city"].get("label", data["city"]["name"]),
         warehouse=(_address_line(data).split(": ", 1)[-1] if to_door
                    else data["warehouse"]["name"]),
         delivery=("адресна доставка" if to_door else "відділення"),

@@ -355,26 +355,67 @@ async def np_phone(msg: Message, state: FSMContext):
         return
     np_store.save(phone=phone)
     await state.set_state(NPSetup.city)
-    await msg.answer("🏙 Введіть <b>місто, з якого відправляєте</b>:")
+    await msg.answer("🏙 Введіть <b>населений пункт, з якого відправляєте</b>:")
 
 
 @router.message(NPSetup.city, F.text)
 async def np_city(msg: Message, state: FSMContext):
+    query = msg.text.strip()
     try:
-        cities = await np.search_cities(msg.text.strip())
+        found = await np.search_city_page(query)
     except np.NPError as e:
         await msg.answer(f"⚠️ Помилка НП: {e}\nСпробуйте ще раз:")
         return
-    if not cities:
-        await msg.answer("⚠️ Не знайдено. Введіть назву міста ще раз:")
+    if not found["cities"]:
+        await msg.answer("⚠️ Не знайдено. Введіть назву населеного пункту ще раз:")
         return
-    await state.update_data(cities=cities)
+    await state.update_data(cities=found["cities"], city_query=query,
+                            city_page=1, city_total=found["total"],
+                            city_has_next=found["has_next"])
     await state.set_state(NPSetup.city_pick)
-    rows = [[InlineKeyboardButton(text=f"{c['name']} ({c['area']} обл.)",
-                                  callback_data=f"npc:{i}")]
+    await msg.answer("Оберіть населений пункт:",
+                     reply_markup=_npc_kb(found["cities"], 1, found["has_next"]))
+
+
+def _npc_kb(cities, page: int, has_next: bool):
+    rows = [[InlineKeyboardButton(text=c["label"][:90],
+                                  callback_data=f"npc:{page}:{i}")]
             for i, c in enumerate(cities)]
-    await msg.answer("Оберіть місто:",
-                     reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton(text="⬅️ Попередні",
+                                       callback_data=f"npcp:{page - 1}"))
+    if has_next:
+        nav.append(InlineKeyboardButton(text="Наступні ➡️",
+                                       callback_data=f"npcp:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.callback_query(F.data.startswith("npcp:"), NPSetup.city_pick)
+async def np_city_page(cb: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    page = int(cb.data.split(":")[1])
+    if page < 1 or page > data["city_page"] + 1 or (
+            page > data["city_page"] and not data.get("city_has_next")):
+        await cb.answer("Сторінка недоступна", show_alert=True)
+        return
+    try:
+        found = await np.search_city_page(data["city_query"], page=page)
+    except np.NPError as e:
+        await cb.answer(f"Помилка НП: {e}"[:180], show_alert=True)
+        return
+    if not found["cities"]:
+        await cb.answer("Більше населених пунктів немає", show_alert=True)
+        return
+    await state.update_data(cities=found["cities"], city_page=page,
+                            city_total=found["total"],
+                            city_has_next=found["has_next"])
+    await cb.message.edit_text(
+        f"Оберіть населений пункт (сторінка {page}):",
+        reply_markup=_npc_kb(found["cities"], page, found["has_next"]))
+    await cb.answer()
 
 
 def _wh_kb(whs, page: int):
@@ -396,18 +437,25 @@ def _wh_kb(whs, page: int):
 @router.callback_query(F.data.startswith("npc:"), NPSetup.city_pick)
 async def np_city_pick(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    city = data["cities"][int(cb.data.split(":")[1])]
+    try:
+        _, page, index = cb.data.split(":")
+        if int(page) != data["city_page"]:
+            raise ValueError("stale city selection")
+        city = data["cities"][int(index)]
+    except (IndexError, ValueError, KeyError):
+        await cb.answer("Сторінку змінено. Оберіть пункт ще раз.", show_alert=True)
+        return
     try:
         whs = await np.all_warehouses(city["ref"])
     except np.NPError as e:
         await cb.message.edit_text(f"⚠️ Помилка НП: {e}")
         await cb.answer()
         return
-    np_store.save(city_ref=city["ref"], city_name=city["name"])
+    np_store.save(city_ref=city["ref"], city_name=city.get("label", city["name"]))
     await state.update_data(whs=whs)
     await state.set_state(NPSetup.wh_pick)
     await cb.message.edit_text(
-        f"📍 {city['name']} — оберіть <b>відділення, з якого відправляєте</b>:",
+        f"📍 {city.get('label', city['name'])} — оберіть <b>відділення, з якого відправляєте</b>:",
         reply_markup=_wh_kb(whs, 0))
     await cb.answer()
 

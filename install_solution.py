@@ -11,7 +11,7 @@ EXPECTED = {
     'catalog_parser.py': '8836fb06e819dc2f206a8f5a4e9ad5cd1d0f575b',
     'main.py': 'ae096e8a5b5a7380e31670f6c49e49eddb24a07c',
     'warehouse_sync.py': '1f69273c12003150b14a49ff6c934ccfe4c0204a',
-    'handlers_admin.py': 'b1f9c6d17c6b4b7ed4fee48a35777e7c46f1e5b0',
+    'handlers_admin.py': 'c688788cb2298ce165ce158847b66ab029d616b7',
 }
 
 def replace_function(text, name, replacement):
