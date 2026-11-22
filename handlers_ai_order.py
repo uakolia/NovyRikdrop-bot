@@ -151,37 +151,80 @@ async def validate(target, state):
         return
     await state.update_data(ai_plan=draft)
     try:
-        cities = await np.search_cities(draft["city_query"], limit=8)
+        found = await np.search_city_page(draft["city_query"])
     except np.NPError:
-        await send(target, "⚠️ Не вдалося перевірити місто через Нову Пошту. "
+        await send(target, "⚠️ Не вдалося перевірити населений пункт через Нову Пошту. "
                    "Повторіть повідомлення пізніше.", cancel_kb())
         return
+    cities = found["cities"]
     if not cities:
-        await send(target, "⚠️ Нова Пошта не знайшла місто. Уточніть назву.", cancel_kb())
+        await send(target, "⚠️ Нова Пошта не знайшла населений пункт. "
+                   "Уточніть назву.", cancel_kb())
         return
-    name = draft["city_query"].casefold().removeprefix("м.").strip()
-    exact = [c for c in cities if c["name"].casefold().removeprefix("м.").strip() == name]
-    if len(exact) == 1:
-        await find_warehouse(target, state, exact[0])
-    elif len(cities) == 1:
+    if len(cities) == 1 and not found["has_next"] and found["total"] <= 1:
         await find_warehouse(target, state, cities[0])
-    else:
-        await state.update_data(ai_cities=cities)
-        await state.set_state(AIOrder.choose_city)
-        buttons = [[InlineKeyboardButton(
-            text=f"{c['name']} ({c.get('area', '')})"[:60], callback_data=f"ai:city:{i}")]
-            for i, c in enumerate(cities)]
-        buttons.append([InlineKeyboardButton(text="✖️ Скасувати", callback_data="ai:cancel")])
-        await send(target, "🏙 Уточніть місто:", InlineKeyboardMarkup(inline_keyboard=buttons))
+        return
+    await state.update_data(ai_cities=cities, ai_city_query=draft["city_query"],
+                            ai_city_page=1, ai_city_total=found["total"],
+                            ai_city_has_next=found["has_next"])
+    await state.set_state(AIOrder.choose_city)
+    await send(target, "🏙 Уточніть населений пункт:",
+               ai_city_kb(cities, 1, found["has_next"]))
+
+
+def ai_city_kb(cities, page: int, has_next: bool):
+    buttons = [[InlineKeyboardButton(
+        text=c["label"][:90], callback_data=f"ai:city:{page}:{i}")]
+        for i, c in enumerate(cities)]
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton(text="⬅️ Попередні",
+                                       callback_data=f"ai:cityp:{page - 1}"))
+    if has_next:
+        nav.append(InlineKeyboardButton(text="Наступні ➡️",
+                                       callback_data=f"ai:cityp:{page + 1}"))
+    if nav:
+        buttons.append(nav)
+    buttons.append([InlineKeyboardButton(text="✖️ Скасувати",
+                                         callback_data="ai:cancel")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+@router.callback_query(F.data.startswith("ai:cityp:"), AIOrder.choose_city)
+async def ai_cities_page(cb: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    page = int(cb.data.rsplit(":", 1)[1])
+    if page < 1 or page > data["ai_city_page"] + 1 or (
+            page > data["ai_city_page"] and not data.get("ai_city_has_next")):
+        await cb.answer("Сторінка недоступна", show_alert=True)
+        return
+    try:
+        found = await np.search_city_page(data["ai_city_query"], page=page)
+    except np.NPError as e:
+        await cb.answer(f"Помилка Нової Пошти: {e}"[:180], show_alert=True)
+        return
+    if not found["cities"]:
+        await cb.answer("Більше населених пунктів немає", show_alert=True)
+        return
+    await state.update_data(ai_cities=found["cities"], ai_city_page=page,
+                            ai_city_total=found["total"],
+                            ai_city_has_next=found["has_next"])
+    await cb.message.edit_text(
+        f"🏙 Уточніть населений пункт (сторінка {page}):",
+        reply_markup=ai_city_kb(found["cities"], page, found["has_next"]))
+    await cb.answer()
 
 
 @router.callback_query(F.data.startswith("ai:city:"), AIOrder.choose_city)
 async def city_selected(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     try:
-        city = data["ai_cities"][int(cb.data.rsplit(":", 1)[1])]
+        _, _, page, index = cb.data.split(":")
+        if int(page) != data["ai_city_page"]:
+            raise ValueError("stale city selection")
+        city = data["ai_cities"][int(index)]
     except (IndexError, ValueError, KeyError):
-        await cb.answer("Невірне місто", show_alert=True)
+        await cb.answer("Сторінку змінено. Оберіть пункт ще раз.", show_alert=True)
         return
     await cb.answer()
     await find_warehouse(cb, state, city)
