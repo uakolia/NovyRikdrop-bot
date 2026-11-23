@@ -137,7 +137,10 @@ async def main():
 
     bot = Bot(config.BOT_TOKEN,
               default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher()
+    from aiogram.fsm.storage.memory import SimpleEventIsolation
+    from order_storage import OrderStorage
+    import np_directory
+    dp = Dispatcher(storage=OrderStorage(), events_isolation=SimpleEventIsolation())
     gate = access.ApprovalMiddleware()
     dp.message.middleware(gate)
     dp.callback_query.middleware(gate)
@@ -152,6 +155,7 @@ async def main():
     # (для дропшипера це виглядало як «бот зламався»). Доступ працює й до
     # завантаження: storage.ensure_synced перечитує список при першому ж
     # натисканні незнайомця, а номер замовлення чекає storage.wait_seq_ready.
+    directory_task = asyncio.create_task(np_directory.run())
     loader = asyncio.create_task(startup_load())
     poller = asyncio.create_task(np_tracking.run_forever(bot))
     syncer = asyncio.create_task(sync_forever())
@@ -168,6 +172,8 @@ async def main():
     try:
         await dp.start_polling(bot)
     finally:
+        directory_task.cancel()
+        await asyncio.gather(directory_task, return_exceptions=True)
         loader.cancel()
         poller.cancel()
         syncer.cancel()

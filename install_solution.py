@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent
 EXPECTED = {
     'catalog.py': '87beea0bbe5b51a40bc07d6ec63d81c2b3a3f0a9',
     'catalog_parser.py': '8836fb06e819dc2f206a8f5a4e9ad5cd1d0f575b',
-    'main.py': 'ae096e8a5b5a7380e31670f6c49e49eddb24a07c',
+    'main.py': 'ba995b7d730c35ef41a871e0d03b6afe5b02bb81',
     'warehouse_sync.py': '1f69273c12003150b14a49ff6c934ccfe4c0204a',
     'handlers_admin.py': 'c688788cb2298ce165ce158847b66ab029d616b7',
 }

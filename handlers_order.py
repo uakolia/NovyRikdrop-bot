@@ -528,6 +528,16 @@ async def start_order(cb: CallbackQuery, state: FSMContext):
     if not storage.is_approved(cb.from_user.id):
         await cb.answer("Доступ ще не схвалено", show_alert=True)
         return
+    current = (await state.get_state() or "").removeprefix("Order:")
+    if current.startswith("AIOrder:"):
+        from handlers_ai_order import resume
+        await cb.answer()
+        await resume(cb, state)
+        return
+    if current in SHOW:
+        await cb.answer("Продовжуємо збережене замовлення")
+        await SHOW[current](cb, state)
+        return
     await state.clear()
     await show_category(cb, state)
     await cb.answer()
@@ -724,15 +734,27 @@ async def input_city(msg: Message, state: FSMContext):
     if len(q) < 2:
         await msg.answer("⚠️ Введіть назву населеного пункту:", reply_markup=_back_kb("city"))
         return
+    await state.update_data(city_query=q)
+    await lookup_city(msg, state, q)
+
+
+@router.callback_query(F.data == "city_retry", Order.city)
+async def retry_city(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await lookup_city(cb, state, (await state.get_data())["city_query"])
+
+
+async def lookup_city(msg, state, q):
     try:
         found = await np.search_city_page(q)
-    except np.NPError as e:
-        await msg.answer(f"⚠️ Помилка Нової Пошти: {e}\nСпробуйте ще раз:",
-                         reply_markup=_back_kb("city"))
+    except np.NPError:
+        await _send(msg, "⚠️ Не вдалося отримати список. Ваша чернетка збережена.",
+                    reply_markup=_back_kb("city", [[InlineKeyboardButton(
+                        text="🔄 Повторити пошук", callback_data="city_retry")]]))
         return
     if not found["cities"]:
-        await msg.answer("⚠️ Населених пунктів не знайдено. Перевірте назву:",
-                         reply_markup=_back_kb("city"))
+        await _send(msg, "⚠️ Населених пунктів не знайдено. Перевірте назву.",
+                    reply_markup=_back_kb("city"))
         return
     await state.update_data(cities=found["cities"], city_query=q,
                             city_page=1, city_total=found["total"],
@@ -779,29 +801,28 @@ async def pick_city(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
+@router.callback_query(F.data == "wh_refresh", Order.warehouse)
 @router.callback_query(F.data == "dlv:warehouse", Order.delivery)
 async def pick_delivery_warehouse(cb: CallbackQuery, state: FSMContext):
+    refresh = cb.data == "wh_refresh"
+    await cb.answer("Запитуємо Нову Пошту…" if refresh else None)
     data = await state.get_data()
     city = data["city"]
     try:
-        whs = await np.city_warehouses(city["ref"])
-    except np.NPError as e:
-        await cb.message.edit_text(f"⚠️ Помилка Нової Пошти: {e}")
-        await cb.answer()
-        return
-    if not whs:
-        await state.update_data(warehouses=[])
-        await cb.message.edit_text(
-            f"⚠️ У населеному пункті <b>{city.get('label', city['name'])}</b> Нова Пошта не показала жодного "
-            "відділення (лише поштомати, яких нам не підходять).\n\n"
-            "Оберіть адресну доставку або інше місто:",
-            reply_markup=_back_kb("warehouse", [[InlineKeyboardButton(
-                text="🚚 Адресна доставка", callback_data="dlv:door")]]))
-        await cb.answer()
-        return
+        whs = await np.city_warehouses(city["ref"], refresh=refresh)
+    except np.NPError:
+        whs = data.get("warehouses", []) if refresh else []
+        note = "⚠️ Нова Пошта тимчасово не відповідає. Ваша чернетка збережена."
+    else:
+        note = "Нова Пошта не показала доступних відділень у цьому населеному пункті."
+        if whs:
+            await state.update_data(warehouses=whs, to_door=False)
+            await show_warehouse(cb, state)
+            return
+    await state.set_state(Order.warehouse)
     await state.update_data(warehouses=whs, to_door=False)
-    await show_warehouse(cb, state)
-    await cb.answer()
+    await _send(cb, note + " Можете оновити список або повернутися до вибору доставки.",
+                reply_markup=kb.warehouses_kb(whs))
 
 
 @router.callback_query(F.data == "dlv:door")
@@ -821,10 +842,20 @@ async def warehouses_page(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
+@router.callback_query(F.data.startswith("whref:"), Order.warehouse)
 @router.callback_query(F.data.startswith("wh:"), Order.warehouse)
 async def pick_warehouse(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    await state.update_data(warehouse=data["warehouses"][int(cb.data.split(":")[1])])
+    prefix, value = cb.data.split(":", 1)
+    rows = data["warehouses"]
+    if prefix == "whref":
+        office = next((r for r in rows if r["ref"] == value), None)
+    else:
+        office = rows[int(value)] if value.isdigit() and int(value) < len(rows) else None
+    if not office:
+        await cb.answer("Список змінився. Оберіть відділення ще раз.", show_alert=True)
+        return
+    await state.update_data(warehouse=office)
     await show_confirm(cb, state)
     await cb.answer()
 

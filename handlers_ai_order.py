@@ -71,14 +71,32 @@ def catalog_entries(user_id):
     return rows
 
 
+async def resume(target, state):
+    current = await state.get_state()
+    if (current or "").startswith("Order:"):
+        step = current.split(":", 1)[1]
+        if step in order.SHOW:
+            await order.SHOW[step](target, state)
+            return True
+    if (current or "").startswith("AIOrder:"):
+        if (await state.get_data()).get("ai_draft"):
+            await validate(target, state)
+        else:
+            await send(target, AI_INTRO, cancel_kb())
+        return True
+    return False
+
+
 @router.callback_query(F.data == "ai:new")
 async def start_ai(cb: CallbackQuery, state: FSMContext):
     if not allowed(cb.from_user.id):
         await cb.answer("AI-замовлення доступні лише схваленим користувачам", show_alert=True)
         return
+    await cb.answer()
+    if await resume(cb, state):
+        return
     await state.clear()
     await state.set_state(AIOrder.collect)
-    await cb.answer()
     await send(cb, AI_INTRO, cancel_kb())
 
 
@@ -86,6 +104,8 @@ async def start_ai(cb: CallbackQuery, state: FSMContext):
 async def command_ai(msg: Message, state: FSMContext):
     if not allowed(msg.from_user.id):
         await msg.answer("AI-замовлення зараз недоступні.")
+        return
+    if await resume(msg, state):
         return
     await state.clear()
     await state.set_state(AIOrder.collect)
@@ -230,22 +250,30 @@ async def city_selected(cb: CallbackQuery, state: FSMContext):
     await find_warehouse(cb, state, city)
 
 
-async def find_warehouse(target, state, city):
+@router.callback_query(F.data == "ai:refresh", AIOrder.choose_warehouse)
+async def refresh_office(cb: CallbackQuery, state: FSMContext):
+    await cb.answer("Запитуємо Нову Пошту…")
+    await find_warehouse(cb, state, (await state.get_data())["ai_city"], refresh=True)
+
+
+async def find_warehouse(target, state, city, refresh=False):
     data = await state.get_data()
+    await state.update_data(ai_city=city, ai_warehouses=[])
+    await state.set_state(AIOrder.choose_warehouse)
+    buttons = [[InlineKeyboardButton(text="🔄 Оновити (якщо не бачите відділення)",
+                                     callback_data="ai:refresh")], *cancel_kb().inline_keyboard]
+    retry = InlineKeyboardMarkup(inline_keyboard=buttons)
     try:
-        warehouses = await np.city_warehouses(city["ref"])
+        warehouses = await np.city_warehouses(city["ref"], refresh=refresh)
     except np.NPError:
-        await state.set_state(AIOrder.collect)
-        await send(target, "⚠️ Нова Пошта не повернула відділення. Спробуйте ще раз.",
-                   cancel_kb())
+        await send(target, "⚠️ Нова Пошта не відповіла. Ваша чернетка збережена.", retry)
         return
     number = data["ai_plan"]["warehouse_number"]
     matches = [w for w in warehouses
                if logic.normalize_warehouse(w.get("number")) == number]
     if not matches:
-        await state.set_state(AIOrder.collect)
         await send(target, f"⚠️ У населеному пункті {escape(city.get('label', city['name']))} немає відділення "
-                   f"№{escape(number)}. Вкажіть інший номер.", cancel_kb())
+                   f"№{escape(number)}. Оновіть список або вкажіть інший номер.", retry)
         return
     if len(matches) == 1:
         await to_confirmation(target, state, city, matches[0])
@@ -255,7 +283,7 @@ async def find_warehouse(target, state, city):
         buttons = [[InlineKeyboardButton(
             text=w["name"][:55], callback_data=f"ai:wh:{i}")]
             for i, w in enumerate(matches[:8])]
-        buttons.append([InlineKeyboardButton(text="✖️ Скасувати", callback_data="ai:cancel")])
+        buttons.extend(retry.inline_keyboard)
         await send(target, "🏢 Уточніть відділення:",
                    InlineKeyboardMarkup(inline_keyboard=buttons))
 
