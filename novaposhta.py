@@ -1,4 +1,6 @@
 """Клієнт API Нової Пошти: міста, вантажні відділення, створення ТТН."""
+import asyncio
+import np_directory
 import re
 
 import aiohttp
@@ -55,11 +57,18 @@ async def _call(model, method, props, api_key: str | None = None):
         "calledMethod": method,
         "methodProperties": props,
     }
-    async with perf.timed(f"НП {model}.{method}"):
-        s = http_client.session()
-        async with s.post(API_URL, json=payload,
-                          timeout=aiohttp.ClientTimeout(total=30)) as r:
-            data = await r.json(content_type=None)
+    try:
+        async with perf.timed(f"НП {model}.{method}"):
+            s = http_client.session()
+            async with s.post(API_URL, json=payload,
+                              timeout=aiohttp.ClientTimeout(total=30)) as r:
+                if r.status == 429:
+                    raise NPError("Too many requests")
+                if r.status >= 500:
+                    raise NPError("Сервіс Нової Пошти тимчасово недоступний")
+                data = await r.json(content_type=None)
+    except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+        raise NPError("Не вдалося отримати відповідь Нової Пошти") from exc
     if not data.get("success"):
         errs = data.get("errors") or data.get("warnings") or ["невідома помилка НП"]
         raise NPError("; ".join(str(e) for e in errs))
@@ -81,6 +90,10 @@ async def search_city_page(query: str, page: int = 1,
     limit = max(1, min(int(limit), 50))
     if len(query) < 2:
         return {"cities": [], "page": page, "total": 0, "has_next": False}
+
+    cached = np_directory.cities(query, page, limit)
+    if cached is not None:
+        return cached
 
     data = await _call("Address", "searchSettlements",
                        {"CityName": query, "Page": str(page), "Limit": str(limit)})
@@ -127,6 +140,8 @@ async def _get_warehouses(city_ref: str, api_key: str | None = None):
     """НП може повертати лише перші 500 відділень, тому читаємо всі сторінки."""
     found, seen = [], set()
     for page in range(1, 101):
+        if page > 1:
+            await asyncio.sleep(1)
         rows = await _call("Address", "getWarehouses",
                            {"CityRef": city_ref, "Page": str(page), "Limit": "500"},
                            api_key=api_key)
@@ -142,35 +157,37 @@ async def cargo_warehouses(city_ref: str, min_weight: float | None = None):
     """Вантажні відділення міста (приймають > min_weight кг)."""
     min_w = min_weight if min_weight is not None else config.NP_MIN_WAREHOUSE_WEIGHT
     data = await _get_warehouses(city_ref)
+    result = [office for w in data if (office := format_office(w, min_w))]
+    result.sort(key=lambda x: (not x["cargo"], _num_key(x["number"])))
+    return result
+
+
+def format_office(w, min_w):
     def _f(v):
         try:
             return float(v or 0)
         except (TypeError, ValueError):
             return 0.0
 
-    result = []
-    for w in data:
-        if w.get("TypeOfWarehouse") == TYPE_POSTOMAT:
-            continue
-        # беремо найбільший із двох лімітів НП: на одне місце і на відправлення
-        max_w = max(_f(w.get("PlaceMaxWeightAllowed")),
-                    _f(w.get("TotalMaxWeightAllowed")))
-        is_cargo = w.get("TypeOfWarehouse") == TYPE_CARGO
-        # 0 у НП означає «без обмежень»; підходить: вантажне, без обмежень,
-        # або з лімітом понад min_w кг
-        if is_cargo or max_w == 0 or max_w > min_w:
-            result.append({
-                "ref": w["Ref"],
-                "number": w.get("Number", ""),
-                "name": w.get("Description", ""),
-                "max_weight": max_w,
-                "cargo": is_cargo,
-            })
-    result.sort(key=lambda x: (not x["cargo"], _num_key(x["number"])))
-    return result
+    if w.get("TypeOfWarehouse") == TYPE_POSTOMAT:
+        return None
+    # беремо найбільший із двох лімітів НП: на одне місце і на відправлення
+    max_w = max(_f(w.get("PlaceMaxWeightAllowed")),
+                _f(w.get("TotalMaxWeightAllowed")))
+    is_cargo = w.get("TypeOfWarehouse") == TYPE_CARGO
+    # 0 у НП означає «без обмежень»; підходить: вантажне, без обмежень,
+    # або з лімітом понад min_w кг
+    if is_cargo or max_w == 0 or max_w > min_w:
+        return {
+            "ref": w["Ref"],
+            "number": w.get("Number", ""),
+            "name": w.get("Description", ""),
+            "max_weight": max_w,
+            "cargo": is_cargo,
+        }
 
 
-async def city_warehouses(city_ref: str):
+async def city_warehouses(city_ref: str, *, refresh=False):
     """ВСІ відділення міста, вантажні першими.
 
     Раніше в боті був лише вибір вантажних (понад 30 кг): велика ялинка в
@@ -184,6 +201,11 @@ async def city_warehouses(city_ref: str):
     Вантажні йдуть першими й позначені в клавіатурі (🏗 проти 🏢), у підписі
     видно ліміт ваги — рішення лишається за дропшипером.
     """
+    if refresh:
+        return await np_directory.refresh_city(city_ref)
+    rows = np_directory.warehouses(city_ref)
+    if rows is not None:
+        return sorted(rows, key=lambda x: (not x["cargo"], _num_key(x["number"])))
     return await cargo_warehouses(city_ref, min_weight=0)
 
 

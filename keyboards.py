@@ -109,7 +109,7 @@ def warehouses_kb(warehouses, page: int = 0, back_step: str = "warehouse"):
         if len(name) + len(limit) > 55:
             name = name[:52 - len(limit)] + "…"
         rows.append([InlineKeyboardButton(text=f"{mark} {name}{limit}",
-                                          callback_data=f"wh:{page * PER_PAGE + i}")])
+                                          callback_data=f"whref:{w['ref']}")])
     nav = []
     if page > 0:
         nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"whp:{page - 1}"))
@@ -117,6 +117,7 @@ def warehouses_kb(warehouses, page: int = 0, back_step: str = "warehouse"):
         nav.append(InlineKeyboardButton(text="➡️", callback_data=f"whp:{page + 1}"))
     if nav:
         rows.append(nav)
+    rows.append([InlineKeyboardButton(text="🔄 Оновити (якщо не бачите відділення)", callback_data="wh_refresh")])
     rows.append([InlineKeyboardButton(text="⬅️ Назад",
                                       callback_data=f"back:{back_step}"),
                  InlineKeyboardButton(text="✖️ Скасувати", callback_data="order:cancel")])
