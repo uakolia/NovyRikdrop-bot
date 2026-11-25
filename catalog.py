@@ -295,19 +295,25 @@ def ttn_description(item, user_id: int | None = None) -> str:
     оголошену вартість і на претензії. Якщо назва вже починається з такого
     слова, вдруге його не додаємо.
 
-    Якщо у дропшипера є «Персональна назва» — далі беремо ЇЇ як є: вона вже
-    містить розмір («Нью Йорк 2.2м»), і size_label() дав би «Нью Йорк 2.2м
-    2.2 м». Тому розмір окремо додаємо лише до заводської назви.
+    Пріоритет: «Назви товарів» (артикул, потім модель), далі персональна
+    назва із залишків, далі заводська назва. Для aliases прибираємо кінцевий
+    розмір і додаємо розмір із прайсу; назву із залишків лишаємо як є.
 
     В дужках завжди ОРИГІНАЛЬНИЙ артикул прайсу (не канонічний ключ) — саме
     його знають фабрика й прайс. В описі лише дані про товар: жодних ПІБ,
     телефонів чи адрес.
     """
+    import aliases
     import stock
-    own = stock.cached_name(user_id, item.get("article", ""))
+    # TTN names are independent of the factory name saved in orders.
+    # "Назви товарів" takes precedence over stock sheet personal names.
+    names = aliases.for_user(user_id) if user_id is not None else {}
+    alias = (names.get(article_key.canon(item.get("article")))
+             or names.get(article_key.canon(item.get("model_ua"))))
+    own = stock.cached_name(user_id, item.get("article", "")) if not alias else ""
     if own:
         return f"{_with_type(own, item)} ({item['article']})"[:100]
-    name = _with_type(item["model_ua"], item)
+    name = _with_type(strip_size(alias) if alias else item["model_ua"], item)
     size = size_label(item)
     if size == item["article"]:
         return f"{name} ({item['article']})"[:100]
